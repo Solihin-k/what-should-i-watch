@@ -1,7 +1,11 @@
 import axios from 'axios';
+import NodeCache from 'node-cache';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+// Genre lists are stable (~20 entries) — cache for 24 hours to avoid redundant calls
+const genreCache = new NodeCache({ stdTTL: 86400 });
 
 const tmdbClient = axios.create({
   baseURL: process.env.TMDB_API_BASE_URL,
@@ -62,4 +66,42 @@ async function enrichContent(tmdbId, mediaType, region) {
   return { ...details, providers };
 }
 
-export { tmdbClient, searchContent, getContentDetails, getWatchProviders, enrichContent };
+// discoverContent — fetches popular subscription content from TMDB for given provider IDs
+// providerIds: array of TMDB provider IDs; region: ISO 3166-1 alpha-2; mediaType: 'movie' | 'tv'
+async function discoverContent(providerIds, region, mediaType) {
+  const response = await tmdbClient.get(`/discover/${mediaType}`, {
+    params: {
+      watch_region: region,
+      with_watch_providers: providerIds.join('|'),
+      with_watch_monetization_types: 'flatrate',
+      sort_by: 'popularity.desc',
+      page: 1,
+    },
+  });
+  return response.data.results || [];
+}
+
+// getGenreList — returns a map of { [genreId]: genreName } for fast lookup
+// Results are cached for 24 hours as the genre list rarely changes
+async function getGenreList(mediaType) {
+  const cacheKey = `genres_${mediaType}`;
+  const cached = genreCache.get(cacheKey);
+  if (cached) return cached;
+
+  const response = await tmdbClient.get(`/genre/${mediaType}/list`);
+  const genreMap = Object.fromEntries(
+    (response.data.genres || []).map((g) => [g.id, g.name])
+  );
+  genreCache.set(cacheKey, genreMap);
+  return genreMap;
+}
+
+export {
+  tmdbClient,
+  searchContent,
+  getContentDetails,
+  getWatchProviders,
+  enrichContent,
+  discoverContent,
+  getGenreList,
+};

@@ -1,3 +1,34 @@
+// PlatformLogo — shows platform image with a colored initial badge fallback
+function PlatformLogo({ platform }) {
+  const initials = platform.name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  return (
+    <div className="relative w-8 h-8 shrink-0">
+      <img
+        src={platform.logoUrl}
+        alt={platform.name}
+        className="w-8 h-8 rounded-md object-contain bg-gray-50"
+        onError={(e) => {
+          // Hide broken image and reveal the colored initial badge beneath it
+          e.currentTarget.style.display = 'none';
+          e.currentTarget.nextSibling.style.display = 'flex';
+        }}
+      />
+      <div
+        className="absolute inset-0 rounded-md items-center justify-center text-white text-xs font-bold"
+        style={{ backgroundColor: platform.brandColor, display: 'none' }}
+      >
+        {initials}
+      </div>
+    </div>
+  );
+}
+
 // PlatformSelector — lets users pick which streaming services they have
 // Selected platforms are highlighted with a branded border
 export default function PlatformSelector({ platforms, selected, onChange }) {
@@ -31,15 +62,7 @@ export default function PlatformSelector({ platforms, selected, onChange }) {
               ].join(' ')}
               aria-pressed={isSelected}
             >
-              <img
-                src={platform.logoUrl}
-                alt={platform.name}
-                className="w-8 h-8 rounded-md object-contain bg-gray-50"
-                onError={(e) => {
-                  // Fall back to a colored initial badge if logo fails to load
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
+              <PlatformLogo platform={platform} />
               <span className="text-sm font-medium text-gray-700 leading-tight">
                 {platform.name}
               </span>

@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import healthRouter from './routes/health.js';
 import regionRouter from './routes/region.js';
 import platformsRouter from './routes/platforms.js';
+import recommendationsRouter from './routes/recommendations.js';
 import errorHandler from './middleware/errorHandler.js';
 
 dotenv.config();
@@ -20,6 +21,7 @@ app.use(express.json());
 app.use('/api', healthRouter);
 app.use('/api', regionRouter);
 app.use('/api', platformsRouter);
+app.use('/api', recommendationsRouter);
 
 // Error handler must be last
 app.use(errorHandler);

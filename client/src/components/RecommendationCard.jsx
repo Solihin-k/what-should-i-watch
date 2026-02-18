@@ -1,4 +1,4 @@
-const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w300';
+const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
 
 // Star rating — rounds to nearest half star visually, shows numeric score
 function StarRating({ rating }) {

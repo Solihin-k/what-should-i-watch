@@ -16,3 +16,18 @@ export async function getRegion() {
   }
   return response.json();
 }
+
+export async function getRecommendations(platformIds, region) {
+  const params = new URLSearchParams();
+  if (platformIds && platformIds.length > 0) {
+    params.set('platforms', platformIds.join(','));
+  }
+  if (region) {
+    params.set('region', region);
+  }
+  const response = await fetch(`${API_BASE_URL}/api/recommendations?${params}`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch recommendations');
+  }
+  return response.json();
+}

@@ -1,41 +1,18 @@
 import { usePlatforms } from './hooks/usePlatforms.js';
 import { useRegion } from './hooks/useRegion.js';
 import { useSelectedPlatforms } from './hooks/useSelectedPlatforms.js';
+import { useRecommendations } from './hooks/useRecommendations.js';
 import PlatformSelector from './components/PlatformSelector.jsx';
 import RecommendationCard from './components/RecommendationCard.jsx';
-
-// Mock data to validate component rendering before AI integration (Milestone 2)
-const MOCK_RECOMMENDATIONS = [
-  {
-    id: 1,
-    title: 'Severance',
-    year: 2022,
-    mediaType: 'tv',
-    posterPath: '/nBD7DOyBDL0ooVeXDNqEYFrJTZg.jpg',
-    rating: 8.7,
-    genres: [{ id: 18, name: 'Drama' }, { id: 878, name: 'Sci-Fi' }],
-    platforms: [{ id: 'apple-tv', name: 'Apple TV+', brandColor: '#000000' }],
-    whyItMatches:
-      'Perfect for when you want something cerebral and unlike anything else on TV. A slow-burn thriller that rewards patience.',
-  },
-  {
-    id: 2,
-    title: 'Ted Lasso',
-    year: 2020,
-    mediaType: 'tv',
-    posterPath: '/t28MlQxdDcLkLY4opfRCqFCMjQ3.jpg',
-    rating: 8.8,
-    genres: [{ id: 35, name: 'Comedy' }, { id: 18, name: 'Drama' }],
-    platforms: [{ id: 'apple-tv', name: 'Apple TV+', brandColor: '#000000' }],
-    whyItMatches:
-      'Genuinely uplifting without being saccharine. Great if you want to feel good without turning your brain off.',
-  },
-];
 
 export default function App() {
   const { region, loading: regionLoading } = useRegion();
   const { platforms, loading: platformsLoading } = usePlatforms(region?.countryCode);
   const [selectedPlatforms, setSelectedPlatforms] = useSelectedPlatforms();
+  const { recommendations, loading: recsLoading, error: recsError } = useRecommendations(
+    selectedPlatforms,
+    region?.countryCode
+  );
 
   const isLoading = regionLoading || platformsLoading;
 
@@ -63,12 +40,30 @@ export default function App() {
           />
         )}
 
-        {/* Mock recommendation cards — replaced by AI results in Milestone 2 */}
+        {/* Recommendations */}
         <div className="flex flex-col gap-4">
           <h2 className="text-lg font-semibold text-gray-800">Recommended for you</h2>
-          {MOCK_RECOMMENDATIONS.map((rec) => (
-            <RecommendationCard key={rec.id} {...rec} />
-          ))}
+
+          {selectedPlatforms.length === 0 ? (
+            <p className="text-sm text-gray-500">
+              Select your platforms above to see what&apos;s available.
+            </p>
+          ) : recsLoading ? (
+            <p className="text-sm text-gray-500">Finding what&apos;s available&hellip;</p>
+          ) : recsError ? (
+            <p className="text-sm text-red-500">
+              Something went wrong loading recommendations. Please try again.
+            </p>
+          ) : recommendations.length === 0 ? (
+            <p className="text-sm text-gray-500">
+              Nothing found for your selected platforms in {region?.countryName || 'your region'}.
+              Try adding more platforms.
+            </p>
+          ) : (
+            recommendations.map((rec) => (
+              <RecommendationCard key={rec.id} {...rec} />
+            ))
+          )}
         </div>
       </div>
     </div>
