@@ -1,5 +1,5 @@
 // Tier 1 platforms — full TMDB/JustWatch coverage at launch, Singapore-first
-// tmdbProviderId and logo_path sourced from TMDB /watch/providers/tv?watch_region=SG
+// Viki provider_id/logo sourced from global TMDB providers list (not in SG JustWatch data)
 // logoUrl format: https://image.tmdb.org/t/p/original{logo_path}
 const PLATFORMS = [
   {
@@ -38,11 +38,11 @@ const PLATFORMS = [
     brandColor: '#FFCC00',
   },
   {
-    id: 'apple-tv',
-    name: 'Apple TV+',
-    logoUrl: 'https://image.tmdb.org/t/p/original/mcbz1LgtErU9p4UdbZ0rG6RTWHX.jpg',
-    tmdbProviderId: 350,
-    brandColor: '#555555',
+    id: 'rakuten-viki',
+    name: 'Rakuten Viki',
+    logoUrl: 'https://image.tmdb.org/t/p/original/73uV3YooOA8gD9YQTXFj2XakZWA.jpg',
+    tmdbProviderId: 344,   // global Viki ID; not in TMDB SG discover results
+    brandColor: '#1DACE8',
   },
 ];
 

@@ -79,7 +79,7 @@ Dozens of "movie recommendation chatbot" repos exist, but they are tech demos â€
 ### 5.1 Platform Selector
 - User selects which streaming platforms they subscribe to
 - Persist selection in local storage so they don't re-enter every visit
-- Tier 1 platforms at launch: Netflix, Disney+, Amazon Prime Video, Apple TV+, HBO Go/Max, Paramount+
+- Tier 1 platforms at launch: Netflix, Disney+, Amazon Prime Video, HBO Go/Max, Viu, Rakuten Viki
 - Clean, visual UI with platform logos
 
 ### 5.2 Region Detection

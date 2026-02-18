@@ -25,10 +25,10 @@ Primary market: Singapore and Southeast Asia, with architecture designed for reg
 
 ## Tiered Platform Strategy
 ### Tier 1 — Full TMDB/JustWatch coverage (launch platforms):
-- Netflix, Disney+, Amazon Prime Video, Apple TV+, HBO Go/Max, Paramount+
+- Netflix, Disney+, Amazon Prime Video, HBO Go/Max, Viu, Rakuten Viki
 
 ### Tier 2 — Add post-MVP based on user demand:
-- Viu, iQIYI, meWATCH, WeTV
+- iQIYI, meWATCH, WeTV
 - These may require Watchmode API or manual curation for availability data
 
 ## Code Style & Conventions
