@@ -39,7 +39,7 @@ const PLATFORMS = [
   },
   {
     id: 'rakuten-viki',
-    name: 'Rakuten Viki',
+    name: 'Viki',
     logoUrl: 'https://image.tmdb.org/t/p/original/73uV3YooOA8gD9YQTXFj2XakZWA.jpg',
     tmdbProviderId: 344,   // global Viki ID; not in TMDB SG discover results
     brandColor: '#1DACE8',
