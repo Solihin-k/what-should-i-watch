@@ -1,6 +1,6 @@
 import PLATFORMS from '../config/platforms.js';
 import { getRecommendations } from './claudeService.js';
-import { validateTitle } from './tmdbService.js';
+import { validateTitle, lookupTitle } from './tmdbService.js';
 
 export async function generateRecommendations({ message, platforms, region, conversationHistory = [] }) {
   // Map platform IDs to full platform objects and TMDB provider IDs
@@ -100,8 +100,58 @@ export async function generateRecommendations({ message, platforms, region, conv
 
   console.log('[Recommend] Validated:', recommendations.length, 'available |', unavailableTitles.length, 'unavailable:', unavailableTitles.join(', ') || 'none');
 
+  // Fallback: recover unavailable titles for unverified platforms (e.g. Viki)
+  const unverifiedPlatforms = selectedPlatforms.filter((p) => p.unverified);
+  if (unverifiedPlatforms.length > 0 && unavailableTitles.length > 0) {
+    const recoveredTitles = [];
+    for (const titleName of [...unavailableTitles]) {
+      const originalRec = claudeResult.recommendations.find((r) => r.title === titleName);
+      if (!originalRec) continue;
+      try {
+        const looked = await lookupTitle({
+          title: originalRec.title,
+          year: originalRec.year,
+          type: originalRec.type,
+          region,
+        });
+        if (looked) {
+          const releaseDate = looked.release_date || '';
+          const year = releaseDate ? new Date(releaseDate).getFullYear() : null;
+          recommendations.push({
+            id: looked.id,
+            title: looked.title,
+            year,
+            mediaType: looked.mediaType,
+            posterPath: looked.poster_path || null,
+            rating: looked.vote_average ?? null,
+            genres: (looked.genres || []).map((g) => ({ id: g.id, name: g.name })),
+            platforms: unverifiedPlatforms.map((p) => ({
+              id: p.id,
+              name: p.name,
+              brandColor: p.brandColor,
+            })),
+            whyItMatches: originalRec.reasoning,
+            overview: looked.overview || '',
+            unverified: true,
+          });
+          recoveredTitles.push(titleName);
+        }
+      } catch (err) {
+        console.error('[Recommend] Fallback lookup failed for', titleName, ':', err.message);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    for (const t of recoveredTitles) {
+      const idx = unavailableTitles.indexOf(t);
+      if (idx !== -1) unavailableTitles.splice(idx, 1);
+    }
+    console.log('[Recommend] Recovered', recoveredTitles.length, 'titles via unverified fallback');
+  }
+
+  const finalRecommendations = recommendations.slice(0, 3);
+
   return {
-    recommendations,
+    recommendations: finalRecommendations,
     followUpMessage: claudeResult.followUpMessage,
     unavailableTitles,
   };

@@ -2,6 +2,7 @@ import { jest } from '@jest/globals';
 
 const mockGetRecommendations = jest.fn();
 const mockValidateTitle = jest.fn();
+const mockLookupTitle = jest.fn();
 
 jest.unstable_mockModule('../services/claudeService.js', () => ({
   getRecommendations: mockGetRecommendations,
@@ -9,6 +10,7 @@ jest.unstable_mockModule('../services/claudeService.js', () => ({
 
 jest.unstable_mockModule('../services/tmdbService.js', () => ({
   validateTitle: mockValidateTitle,
+  lookupTitle: mockLookupTitle,
 }));
 
 // platforms.js is not mocked — uses real platform data
@@ -17,6 +19,7 @@ const { generateRecommendations } = await import('../services/recommendService.j
 beforeEach(() => {
   mockGetRecommendations.mockReset();
   mockValidateTitle.mockReset();
+  mockLookupTitle.mockReset();
 });
 
 describe('generateRecommendations', () => {

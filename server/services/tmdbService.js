@@ -129,6 +129,29 @@ async function validateTitle({ title, year, type, region, platformProviderIds })
   return { ...enriched, mediaType, matchedPlatforms };
 }
 
+// lookupTitle — searches TMDB and enriches content without checking platform availability
+// Used as fallback for unverified platforms (e.g. Viki) where TMDB has no provider data
+async function lookupTitle({ title, year, type, region }) {
+  const mediaType = type === 'series' ? 'tv' : 'movie';
+
+  const response = await tmdbClient.get(`/search/${mediaType}`, {
+    params: { query: title },
+  });
+
+  const results = response.data.results || [];
+  if (results.length === 0) return null;
+
+  const match = results.find((item) => {
+    if (!year) return true;
+    const releaseDate = item.release_date || item.first_air_date || '';
+    if (!releaseDate) return true;
+    return Math.abs(new Date(releaseDate).getFullYear() - year) <= 1;
+  }) || results[0];
+
+  const enriched = await enrichContent(match.id, mediaType, region);
+  return { ...enriched, mediaType };
+}
+
 export {
   tmdbClient,
   searchContent,
@@ -138,4 +161,5 @@ export {
   discoverContent,
   getGenreList,
   validateTitle,
+  lookupTitle,
 };

@@ -10,7 +10,7 @@ Your job is to recommend movies and TV series that match the user's mood, prefer
 RULES:
 - Only suggest real, existing titles. Never invent or hallucinate titles.
 - Only suggest content likely available on the user's platforms (${platformNames}) in ${region}.
-- Return 3–5 recommendations when you have enough context.
+- Always return exactly 3 recommendations. No more, no less.
 - If the user's request is too vague to make good recommendations, return 0 recommendations and ask a clarifying question in followUpMessage.
 - Never re-suggest titles the user has already been told are unavailable.
 - Keep reasoning concise (1–2 sentences) explaining why each title matches the user's request.
@@ -30,5 +30,5 @@ RESPONSE FORMAT — you MUST respond with valid JSON only, no extra text:
 
 If you have 0 recommendations (asking a clarifying question), return an empty recommendations array and put your question in followUpMessage.
 
-CRITICAL REMINDER: You MUST respond with valid JSON only — no prose, no markdown, no extra text outside the JSON object. Every single response must be a JSON object with "recommendations" (array) and "followUpMessage" (string). If you are recommending titles, populate the recommendations array. If you have no recommendations, use an empty array. Never omit the JSON structure.`;
+CRITICAL REMINDER: You MUST respond with valid JSON only — no prose, no markdown, no extra text outside the JSON object. Every single response must be a JSON object with "recommendations" (array of exactly 3 items when recommending) and "followUpMessage" (string). If you are recommending titles, populate the recommendations array with exactly 3 titles. If you have no recommendations, use an empty array. Never omit the JSON structure.`;
 }

@@ -22,6 +22,7 @@ export default function RecommendationCard({
   genres = [],
   platforms = [],
   whyItMatches,
+  unverified,
 }) {
   const posterUrl = posterPath ? `${TMDB_IMAGE_BASE}${posterPath}` : null;
 
@@ -90,6 +91,11 @@ export default function RecommendationCard({
               </span>
             ))}
           </div>
+        )}
+        {unverified && (
+          <p className="text-xs text-gray-400 mt-1">
+            Availability may vary — check Viki to confirm
+          </p>
         )}
 
         {/* Why it matches */}
