@@ -17,6 +17,18 @@ export async function getRegion() {
   return response.json();
 }
 
+export async function sendChatMessage({ message, platforms, region, conversationHistory }) {
+  const response = await fetch(`${API_BASE_URL}/api/recommend`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, platforms, region, conversationHistory }),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to get recommendations');
+  }
+  return response.json();
+}
+
 export async function getRecommendations(platformIds, region) {
   const params = new URLSearchParams();
   if (platformIds && platformIds.length > 0) {

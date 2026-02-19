@@ -96,6 +96,39 @@ async function getGenreList(mediaType) {
   return genreMap;
 }
 
+// validateTitle — checks if a Claude-suggested title exists on TMDB and is available on the user's platforms
+// Returns enriched content with matchedPlatforms, or null if not found/unavailable
+async function validateTitle({ title, year, type, region, platformProviderIds }) {
+  const mediaType = type === 'series' ? 'tv' : 'movie';
+
+  const response = await tmdbClient.get(`/search/${mediaType}`, {
+    params: { query: title },
+  });
+
+  const results = response.data.results || [];
+  if (results.length === 0) return null;
+
+  // Find best match — filter by year (+/- 1 tolerance) if provided
+  const match = results.find((item) => {
+    if (!year) return true;
+    const releaseDate = item.release_date || item.first_air_date || '';
+    if (!releaseDate) return true;
+    const itemYear = new Date(releaseDate).getFullYear();
+    return Math.abs(itemYear - year) <= 1;
+  }) || results[0]; // Fall back to top result if no year match
+
+  const enriched = await enrichContent(match.id, mediaType, region);
+
+  // Check if any of the content's providers match the user's selected platforms
+  const matchedPlatforms = (enriched.providers || []).filter((p) =>
+    platformProviderIds.includes(p.provider_id)
+  );
+
+  if (matchedPlatforms.length === 0) return null;
+
+  return { ...enriched, mediaType, matchedPlatforms };
+}
+
 export {
   tmdbClient,
   searchContent,
@@ -104,4 +137,5 @@ export {
   enrichContent,
   discoverContent,
   getGenreList,
+  validateTitle,
 };
