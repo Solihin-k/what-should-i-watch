@@ -37,18 +37,28 @@ export async function generateRecommendations({ message, platforms, region, conv
     };
   }
 
-  // Validate each recommendation against TMDB in parallel
-  const validationResults = await Promise.allSettled(
-    claudeResult.recommendations.map((rec) =>
-      validateTitle({
+  // Validate each recommendation against TMDB sequentially with delay to avoid rate limits
+  const validationResults = [];
+  for (let i = 0; i < claudeResult.recommendations.length; i++) {
+    const rec = claudeResult.recommendations[i];
+    try {
+      const result = await validateTitle({
         title: rec.title,
         year: rec.year,
         type: rec.type,
         region,
         platformProviderIds,
-      })
-    )
-  );
+      });
+      validationResults.push({ status: 'fulfilled', value: result });
+    } catch (err) {
+      console.error('[Recommend] TMDB lookup failed for', rec.title, ':', err.message);
+      validationResults.push({ status: 'rejected', reason: err });
+    }
+    // Rate limit: 200ms between TMDB requests
+    if (i < claudeResult.recommendations.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
 
   const recommendations = [];
   const unavailableTitles = [];

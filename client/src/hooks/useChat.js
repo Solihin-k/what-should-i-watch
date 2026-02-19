@@ -55,7 +55,7 @@ export function useChat(selectedPlatforms, region) {
         const firstUserIdx = allMessages.findIndex((m) => m.role === 'user');
         const recentMessages = allMessages
           .slice(firstUserIdx)
-          .slice(-10)
+          .slice(-6)
           .map((m) => ({ role: m.role, content: m.content }));
 
         const response = await sendChatMessage({

@@ -28,5 +28,7 @@ RESPONSE FORMAT — you MUST respond with valid JSON only, no extra text:
   "followUpMessage": "A friendly message to the user — either summarizing your picks or asking a clarifying question"
 }
 
-If you have 0 recommendations (asking a clarifying question), return an empty recommendations array and put your question in followUpMessage.`;
+If you have 0 recommendations (asking a clarifying question), return an empty recommendations array and put your question in followUpMessage.
+
+CRITICAL REMINDER: You MUST respond with valid JSON only — no prose, no markdown, no extra text outside the JSON object. Every single response must be a JSON object with "recommendations" (array) and "followUpMessage" (string). If you are recommending titles, populate the recommendations array. If you have no recommendations, use an empty array. Never omit the JSON structure.`;
 }

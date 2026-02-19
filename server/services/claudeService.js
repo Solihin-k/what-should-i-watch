@@ -57,9 +57,11 @@ export async function getRecommendations({
       };
     } catch (parseError) {
       console.error('[Claude] JSON parse failed:', parseError.message, '| Raw text:', responseText.substring(0, 300));
+      // Use raw text as fallback message so the user still sees Claude's response
+      const fallbackMessage = responseText.substring(0, 500) || "I had trouble processing that. Could you rephrase what you're looking for?";
       return {
         recommendations: [],
-        followUpMessage: "I had trouble processing that. Could you rephrase what you're looking for?",
+        followUpMessage: fallbackMessage,
       };
     }
   } catch (error) {
