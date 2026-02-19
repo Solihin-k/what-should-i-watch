@@ -1,3 +1,10 @@
+import vikiLogo from '../assets/viki-logo.png';
+
+// Local logo overrides — used when the TMDB-hosted image is broken or unsuitable
+const LOCAL_LOGOS = {
+  'rakuten-viki': vikiLogo,
+};
+
 // PlatformLogo — shows platform image with a colored initial badge fallback
 function PlatformLogo({ platform }) {
   const initials = platform.name
@@ -7,10 +14,12 @@ function PlatformLogo({ platform }) {
     .slice(0, 2)
     .toUpperCase();
 
+  const src = LOCAL_LOGOS[platform.id] ?? platform.logoUrl;
+
   return (
     <div className="relative w-8 h-8 shrink-0 overflow-hidden">
       <img
-        src={platform.logoUrl}
+        src={src}
         alt={platform.name}
         className="w-8 h-8 rounded-md object-contain bg-gray-50"
         style={platform.logoStyle}
