@@ -1,0 +1,11 @@
+{
+  "name": "what-should-i-watch",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "concurrently \"cd client && npm run dev\" \"cd server && npm run dev\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
