@@ -43,6 +43,8 @@ const PLATFORMS = [
     logoUrl: 'https://image.tmdb.org/t/p/original/73uV3YooOA8gD9YQTXFj2XakZWA.jpg',
     tmdbProviderId: 344,   // global Viki ID; not in TMDB SG discover results
     brandColor: '#1DACE8',
+    // Logo has brand mark in right half only; zoom into right half to fill the 32×32 tile
+    logoStyle: { transform: 'scaleX(2)', transformOrigin: 'right center' },
   },
 ];
 

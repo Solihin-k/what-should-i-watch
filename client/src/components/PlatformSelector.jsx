@@ -8,11 +8,12 @@ function PlatformLogo({ platform }) {
     .toUpperCase();
 
   return (
-    <div className="relative w-8 h-8 shrink-0">
+    <div className="relative w-8 h-8 shrink-0 overflow-hidden">
       <img
         src={platform.logoUrl}
         alt={platform.name}
         className="w-8 h-8 rounded-md object-contain bg-gray-50"
+        style={platform.logoStyle}
         onError={(e) => {
           // Hide broken image and reveal the colored initial badge beneath it
           e.currentTarget.style.display = 'none';
