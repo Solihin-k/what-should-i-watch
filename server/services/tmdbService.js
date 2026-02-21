@@ -7,6 +7,9 @@ dotenv.config();
 // Genre lists are stable (~20 entries) — cache for 24 hours to avoid redundant calls
 const genreCache = new NodeCache({ stdTTL: 86400 });
 
+// Discover results cache — 1 hour TTL, avoids redundant TMDB calls for same platform+region combo
+const discoverCache = new NodeCache({ stdTTL: 3600 });
+
 const tmdbClient = axios.create({
   baseURL: process.env.TMDB_API_BASE_URL,
   params: {
@@ -69,6 +72,11 @@ async function enrichContent(tmdbId, mediaType, region) {
 // discoverContent — fetches popular subscription content from TMDB for given provider IDs
 // providerIds: array of TMDB provider IDs; region: ISO 3166-1 alpha-2; mediaType: 'movie' | 'tv'
 async function discoverContent(providerIds, region, mediaType) {
+  const sortedIds = [...providerIds].sort((a, b) => a - b);
+  const cacheKey = `${sortedIds.join(',')}_${region}_${mediaType}`;
+  const cached = discoverCache.get(cacheKey);
+  if (cached) return cached;
+
   const response = await tmdbClient.get(`/discover/${mediaType}`, {
     params: {
       watch_region: region,
@@ -78,7 +86,9 @@ async function discoverContent(providerIds, region, mediaType) {
       page: 1,
     },
   });
-  return response.data.results || [];
+  const results = response.data.results || [];
+  discoverCache.set(cacheKey, results);
+  return results;
 }
 
 // getGenreList — returns a map of { [genreId]: genreName } for fast lookup

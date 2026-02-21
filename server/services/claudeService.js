@@ -54,6 +54,7 @@ export async function getRecommendations({
   region,
   conversationHistory = [],
   unavailableTitles = [],
+  availableCatalog = '',
 }) {
   const systemPrompt = buildSystemPrompt({ platforms, region });
 
@@ -63,8 +64,11 @@ export async function getRecommendations({
     content: msg.content,
   }));
 
-  // Append unavailable titles note if any
+  // Append catalog and unavailable titles as system notes
   let userMessage = message;
+  if (availableCatalog) {
+    userMessage += `\n\n[Available titles on user's platforms:\n${availableCatalog}\n]`;
+  }
   if (unavailableTitles.length > 0) {
     userMessage += `\n\n[System note: These titles were previously suggested but are unavailable on the user's platforms in ${region}: ${unavailableTitles.join(', ')}. Do not suggest them again.]`;
   }

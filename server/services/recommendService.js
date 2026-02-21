@@ -1,6 +1,33 @@
 import PLATFORMS from '../config/platforms.js';
 import { getRecommendations } from './claudeService.js';
-import { validateTitle, lookupTitle } from './tmdbService.js';
+import { validateTitle, lookupTitle, discoverContent, getGenreList } from './tmdbService.js';
+
+// Build a concise catalog string from TMDB discover results for Claude's context
+async function buildAvailableCatalog(platformProviderIds, region) {
+  const [movies, tvShows, movieGenres, tvGenres] = await Promise.all([
+    discoverContent(platformProviderIds, region, 'movie'),
+    discoverContent(platformProviderIds, region, 'tv'),
+    getGenreList('movie'),
+    getGenreList('tv'),
+  ]);
+
+  const formatEntry = (item, genreMap, mediaType) => {
+    const title = item.title || item.name;
+    const date = item.release_date || item.first_air_date || '';
+    const year = date ? new Date(date).getFullYear() : '?';
+    const genres = (item.genre_ids || []).map((id) => genreMap[id]).filter(Boolean).join(', ');
+    const rating = item.vote_average ? item.vote_average.toFixed(1) : '?';
+    const type = mediaType === 'movie' ? 'movie' : 'series';
+    return `${title} (${year}) [${type}] - ${genres} - ${rating}/10`;
+  };
+
+  const movieEntries = movies.map((m) => formatEntry(m, movieGenres, 'movie'));
+  const tvEntries = tvShows.map((t) => formatEntry(t, tvGenres, 'tv'));
+  const catalog = [...movieEntries, ...tvEntries].join('\n');
+
+  console.log(`[Recommend] Fetched catalog: ${movieEntries.length} movies + ${tvEntries.length} TV shows`);
+  return catalog;
+}
 
 export async function generateRecommendations({ message, platforms, region, conversationHistory = [] }) {
   // Map platform IDs to full platform objects and TMDB provider IDs
@@ -9,6 +36,14 @@ export async function generateRecommendations({ message, platforms, region, conv
     .filter(Boolean);
 
   const platformProviderIds = selectedPlatforms.map((p) => p.tmdbProviderId);
+
+  // Pre-fetch available catalog from TMDB so Claude picks from verified-available content
+  let availableCatalog = '';
+  try {
+    availableCatalog = await buildAvailableCatalog(platformProviderIds, region);
+  } catch (err) {
+    console.error('[Recommend] Failed to fetch catalog, proceeding without:', err.message);
+  }
 
   // Get Claude's recommendations — graceful fallback if Claude is entirely unreachable
   console.log('[Recommend] Calling Claude for:', message.substring(0, 80), '| Platforms:', selectedPlatforms.map((p) => p.id).join(', '));
@@ -19,6 +54,7 @@ export async function generateRecommendations({ message, platforms, region, conv
       platforms: selectedPlatforms,
       region,
       conversationHistory,
+      availableCatalog,
     });
     console.log('[Recommend] Claude returned', claudeResult.recommendations.length, 'recommendations');
   } catch (err) {
