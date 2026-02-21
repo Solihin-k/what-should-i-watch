@@ -13,12 +13,17 @@ function shuffleArray(arr) {
 
 // Build a concise catalog string from TMDB discover results for Claude's context
 async function buildAvailableCatalog(platformProviderIds, region) {
-  const [movies, tvShows, movieGenres, tvGenres] = await Promise.all([
-    discoverDiverseCatalog(platformProviderIds, region, 'movie'),
-    discoverDiverseCatalog(platformProviderIds, region, 'tv'),
+  // Genre lists are cached 24h — always safe to fetch in parallel
+  const [movieGenres, tvGenres] = await Promise.all([
     getGenreList('movie'),
     getGenreList('tv'),
   ]);
+
+  // Stagger discover calls to avoid TMDB rate limits on cold cache:
+  // movies first (3 TMDB calls), then 250ms delay, then TV (3 TMDB calls)
+  const movies = await discoverDiverseCatalog(platformProviderIds, region, 'movie');
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const tvShows = await discoverDiverseCatalog(platformProviderIds, region, 'tv');
 
   const formatEntry = (item, genreMap, mediaType) => {
     const title = item.title || item.name;

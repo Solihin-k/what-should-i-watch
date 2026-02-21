@@ -10,6 +10,10 @@ const genreCache = new NodeCache({ stdTTL: 86400 });
 // Discover results cache — 6 hour TTL, avoids redundant TMDB calls for same platform+region combo
 const discoverCache = new NodeCache({ stdTTL: 21600 });
 
+// Validation/lookup cache — 1h TTL, eliminates repeated TMDB calls for titles Claude recommends often
+// TMDB provider data updates every 24-32h so 1h is conservative
+const validationCache = new NodeCache({ stdTTL: 3600 });
+
 const tmdbClient = axios.create({
   baseURL: process.env.TMDB_API_BASE_URL,
   params: {
@@ -110,13 +114,22 @@ async function getGenreList(mediaType) {
 // Returns enriched content with matchedPlatforms, or null if not found/unavailable
 async function validateTitle({ title, year, type, region, platformProviderIds }) {
   const mediaType = type === 'series' ? 'tv' : 'movie';
+  const sortedProviderIds = [...platformProviderIds].sort((a, b) => a - b).join(',');
+  const normalizedTitle = title.toLowerCase().trim();
+  const cacheKey = `validate_${mediaType}_${region}_${sortedProviderIds}_${normalizedTitle}`;
+
+  const cached = validationCache.get(cacheKey);
+  if (cached !== undefined) return cached;
 
   const response = await tmdbClient.get(`/search/${mediaType}`, {
     params: { query: title },
   });
 
   const results = response.data.results || [];
-  if (results.length === 0) return null;
+  if (results.length === 0) {
+    validationCache.set(cacheKey, null);
+    return null;
+  }
 
   // Find best match — filter by year (+/- 1 tolerance) if provided
   const match = results.find((item) => {
@@ -134,22 +147,35 @@ async function validateTitle({ title, year, type, region, platformProviderIds })
     platformProviderIds.includes(p.provider_id)
   );
 
-  if (matchedPlatforms.length === 0) return null;
+  if (matchedPlatforms.length === 0) {
+    validationCache.set(cacheKey, null);
+    return null;
+  }
 
-  return { ...enriched, mediaType, matchedPlatforms };
+  const result = { ...enriched, mediaType, matchedPlatforms };
+  validationCache.set(cacheKey, result);
+  return result;
 }
 
 // lookupTitle — searches TMDB and enriches content without checking platform availability
 // Used as fallback for unverified platforms (e.g. Viki) where TMDB has no provider data
 async function lookupTitle({ title, year, type, region }) {
   const mediaType = type === 'series' ? 'tv' : 'movie';
+  const normalizedTitle = title.toLowerCase().trim();
+  const cacheKey = `lookup_${mediaType}_${region}_${normalizedTitle}`;
+
+  const cached = validationCache.get(cacheKey);
+  if (cached !== undefined) return cached;
 
   const response = await tmdbClient.get(`/search/${mediaType}`, {
     params: { query: title },
   });
 
   const results = response.data.results || [];
-  if (results.length === 0) return null;
+  if (results.length === 0) {
+    validationCache.set(cacheKey, null);
+    return null;
+  }
 
   const match = results.find((item) => {
     if (!year) return true;
@@ -159,7 +185,9 @@ async function lookupTitle({ title, year, type, region }) {
   }) || results[0];
 
   const enriched = await enrichContent(match.id, mediaType, region);
-  return { ...enriched, mediaType };
+  const result = { ...enriched, mediaType };
+  validationCache.set(cacheKey, result);
+  return result;
 }
 
 // discoverDiverseCatalog — fetches 3 diverse pages of content per media type and deduplicates

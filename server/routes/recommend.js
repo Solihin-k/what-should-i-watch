@@ -4,12 +4,12 @@ import { generateRecommendations } from '../services/recommendService.js';
 const router = Router();
 
 router.post('/recommend', async (req, res, next) => {
-  // Request-level timeout (~30s)
+  // Request-level timeout (~45s) — Claude takes 5-10s, validation adds 3-6s, P95 is 15-25s
   const timeout = setTimeout(() => {
     if (!res.headersSent) {
       res.status(504).json({ error: 'Request timed out. Please try again.' });
     }
-  }, 30000);
+  }, 45000);
 
   try {
     const { message, platforms, region, conversationHistory } = req.body;
