@@ -37,6 +37,7 @@ router.post('/recommend', async (req, res, next) => {
       res.json({
         recommendations: result.recommendations,
         followUpMessage: result.followUpMessage,
+        ...(result.retryable && { retryable: true }),
       });
     }
   } catch (err) {

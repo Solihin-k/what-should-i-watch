@@ -6,11 +6,46 @@ dotenv.config();
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// Parse JSON from Claude's response — handles markdown code fences
+// Multi-strategy JSON parser — cascading extraction
 function parseClaudeResponse(text) {
-  // Strip markdown code fences if present
-  const stripped = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
-  return JSON.parse(stripped);
+  // Strategy 1: Direct parse
+  try {
+    return JSON.parse(text);
+  } catch (_) {
+    // continue
+  }
+
+  // Strategy 2: Strip markdown code fences
+  const fenceStripped = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+  try {
+    return JSON.parse(fenceStripped);
+  } catch (_) {
+    // continue
+  }
+
+  // Strategy 3: Extract from first { to last }
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    try {
+      return JSON.parse(text.substring(firstBrace, lastBrace + 1));
+    } catch (_) {
+      // continue
+    }
+  }
+
+  // All strategies failed
+  return null;
+}
+
+async function callClaude({ systemPrompt, messages }) {
+  const response = await client.messages.create({
+    model: CLAUDE_MODEL,
+    max_tokens: 1024,
+    system: systemPrompt,
+    messages,
+  });
+  return response.content[0]?.text || '';
 }
 
 export async function getRecommendations({
@@ -39,31 +74,68 @@ export async function getRecommendations({
   console.log('[Claude] Sending request with', messages.length, 'messages');
 
   try {
-    const response = await client.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages,
-    });
-
-    const responseText = response.content[0]?.text || '';
+    let responseText = await callClaude({ systemPrompt, messages });
     console.log('[Claude] Raw response:', responseText.substring(0, 500));
 
-    try {
-      const parsed = parseClaudeResponse(responseText);
-      return {
-        recommendations: parsed.recommendations || [],
-        followUpMessage: parsed.followUpMessage || '',
-      };
-    } catch (parseError) {
-      console.error('[Claude] JSON parse failed:', parseError.message, '| Raw text:', responseText.substring(0, 300));
-      // Use raw text as fallback message so the user still sees Claude's response
+    let parsed = parseClaudeResponse(responseText);
+
+    // Retry once if parse failed
+    if (!parsed) {
+      console.log('[Claude] Parse failed, retrying...');
+      responseText = await callClaude({ systemPrompt, messages });
+      console.log('[Claude] Retry raw response:', responseText.substring(0, 500));
+      parsed = parseClaudeResponse(responseText);
+    }
+
+    // If still unparseable, return fallback with retryable flag
+    if (!parsed) {
+      console.error('[Claude] Parse failed after retry | Raw text:', responseText.substring(0, 300));
       const fallbackMessage = responseText.substring(0, 500) || "I had trouble processing that. Could you rephrase what you're looking for?";
+
+      // Diagnostic: check if followUpMessage-like text contains title references
+      if (/[""].+[""]/.test(fallbackMessage)) {
+        console.warn('[Claude] Warning: 0 recommendations but response may contain title references');
+      }
+
       return {
         recommendations: [],
         followUpMessage: fallbackMessage,
+        retryable: true,
       };
     }
+
+    const recommendations = parsed.recommendations || [];
+    const followUpMessage = parsed.followUpMessage || '';
+
+    // Count validation: if 1-2 recs instead of 3, re-prompt once
+    if (recommendations.length > 0 && recommendations.length < 3) {
+      console.log(`[Claude] Got ${recommendations.length} recommendations, re-prompting for exactly 3`);
+      const retryMessages = [
+        ...messages,
+        { role: 'assistant', content: responseText },
+        { role: 'user', content: `You only provided ${recommendations.length} recommendations. Please provide exactly 3. Return the full JSON response again with exactly 3 recommendations.` },
+      ];
+
+      try {
+        const retryText = await callClaude({ systemPrompt, messages: retryMessages });
+        console.log('[Claude] Count-retry raw response:', retryText.substring(0, 500));
+        const retryParsed = parseClaudeResponse(retryText);
+        if (retryParsed && retryParsed.recommendations && retryParsed.recommendations.length === 3) {
+          return {
+            recommendations: retryParsed.recommendations,
+            followUpMessage: retryParsed.followUpMessage || followUpMessage,
+          };
+        }
+      } catch (retryErr) {
+        console.error('[Claude] Count-retry failed:', retryErr.message);
+      }
+      // Fall through — use whatever we got
+    }
+
+    return {
+      recommendations,
+      followUpMessage,
+    };
   } catch (error) {
     console.error('[Claude] API error:', { status: error.status, name: error.name, message: error.message });
 

@@ -14,7 +14,7 @@ function TypingIndicator() {
   );
 }
 
-export default function ChatWindow({ messages, onSend, loading, error }) {
+export default function ChatWindow({ messages, onSend, loading, error, onRetry }) {
   const bottomRef = useRef(null);
 
   // Auto-scroll to bottom when new messages arrive or loading changes
@@ -27,7 +27,12 @@ export default function ChatWindow({ messages, onSend, loading, error }) {
       {/* Scrollable message area */}
       <div className="flex-1 overflow-y-auto flex flex-col gap-3 pb-4">
         {messages.map((msg, i) => (
-          <ChatMessage key={i} {...msg} onChipClick={onSend} />
+          <ChatMessage
+            key={i}
+            {...msg}
+            onChipClick={onSend}
+            onRetry={msg.retryable ? onRetry : undefined}
+          />
         ))}
 
         {loading && <TypingIndicator />}

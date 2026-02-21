@@ -19,6 +19,7 @@ export function useChat(selectedPlatforms, region) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const cancelledRef = useRef(false);
+  const lastMessageRef = useRef('');
 
   // Reset chat when platforms change
   const prevPlatformsRef = useRef(selectedPlatforms);
@@ -38,6 +39,7 @@ export function useChat(selectedPlatforms, region) {
     async (text) => {
       if (!text.trim() || loading) return;
 
+      lastMessageRef.current = text;
       const userMessage = { role: 'user', content: text, recommendations: [] };
       // Clear suggestion chips from greeting when user sends first message
       setMessages((prev) => [
@@ -71,6 +73,7 @@ export function useChat(selectedPlatforms, region) {
           role: 'assistant',
           content: response.followUpMessage,
           recommendations: response.recommendations || [],
+          ...(response.retryable && { retryable: true }),
         };
 
         setMessages((prev) => [...prev, assistantMessage]);
@@ -87,6 +90,21 @@ export function useChat(selectedPlatforms, region) {
     [messages, selectedPlatforms, region, loading]
   );
 
+  const retryLastMessage = useCallback(() => {
+    if (lastMessageRef.current) {
+      // Remove the last assistant message (the failed one) before retrying
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last && last.role === 'assistant' && last.retryable) {
+          return prev.slice(0, -1);
+        }
+        return prev;
+      });
+      // Use setTimeout to let state update before sending
+      setTimeout(() => sendMessage(lastMessageRef.current), 0);
+    }
+  }, [sendMessage]);
+
   const resetChat = useCallback(() => {
     cancelledRef.current = true;
     setMessages([createGreeting()]);
@@ -94,5 +112,5 @@ export function useChat(selectedPlatforms, region) {
     setError(null);
   }, []);
 
-  return { messages, sendMessage, loading, error, resetChat };
+  return { messages, sendMessage, loading, error, resetChat, retryLastMessage };
 }

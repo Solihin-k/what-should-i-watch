@@ -1,6 +1,6 @@
 import RecommendationCard from './RecommendationCard.jsx';
 
-export default function ChatMessage({ role, content, recommendations = [], chips, onChipClick }) {
+export default function ChatMessage({ role, content, recommendations = [], chips, onChipClick, retryable, onRetry }) {
   const isUser = role === 'user';
 
   return (
@@ -35,6 +35,15 @@ export default function ChatMessage({ role, content, recommendations = [], chips
               <RecommendationCard key={rec.id ?? rec.title} {...rec} />
             ))}
           </div>
+        )}
+
+        {!isUser && retryable && onRetry && recommendations.length === 0 && content && (
+          <button
+            onClick={onRetry}
+            className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+          >
+            Try again
+          </button>
         )}
       </div>
     </div>

@@ -9,7 +9,7 @@ export default function App() {
   const { region, loading: regionLoading } = useRegion();
   const { platforms, loading: platformsLoading } = usePlatforms(region?.countryCode);
   const [selectedPlatforms, setSelectedPlatforms] = useSelectedPlatforms();
-  const { messages, sendMessage, loading: chatLoading, error: chatError } = useChat(
+  const { messages, sendMessage, loading: chatLoading, error: chatError, retryLastMessage } = useChat(
     selectedPlatforms,
     region?.countryCode
   );
@@ -53,6 +53,7 @@ export default function App() {
             onSend={sendMessage}
             loading={chatLoading}
             error={chatError}
+            onRetry={retryLastMessage}
           />
         )}
       </div>

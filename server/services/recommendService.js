@@ -29,11 +29,12 @@ export async function generateRecommendations({ message, platforms, region, conv
     };
   }
 
-  // If Claude returned a clarifying question (0 recommendations), pass it through
+  // If Claude returned a clarifying question or fallback (0 recommendations), pass it through
   if (claudeResult.recommendations.length === 0) {
     return {
       recommendations: [],
       followUpMessage: claudeResult.followUpMessage,
+      ...(claudeResult.retryable && { retryable: true }),
     };
   }
 

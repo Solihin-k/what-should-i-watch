@@ -100,8 +100,22 @@ describe('generateRecommendations', () => {
 
     expect(result.recommendations).toEqual([]);
     expect(result.followUpMessage).toBe('What genre are you in the mood for?');
+    expect(result.retryable).toBeUndefined();
     // validateTitle should not be called when there are no recommendations
     expect(mockValidateTitle).not.toHaveBeenCalled();
+  });
+
+  it('passes through retryable flag when Claude parse failed', async () => {
+    mockGetRecommendations.mockResolvedValueOnce({
+      recommendations: [],
+      followUpMessage: 'Some raw text fallback',
+      retryable: true,
+    });
+
+    const result = await generateRecommendations(baseParams);
+
+    expect(result.recommendations).toEqual([]);
+    expect(result.retryable).toBe(true);
   });
 
   it('handles Promise.allSettled resilience — rejected validations are skipped', async () => {
