@@ -1,12 +1,21 @@
 import PLATFORMS from '../config/platforms.js';
 import { getRecommendations } from './claudeService.js';
-import { validateTitle, lookupTitle, discoverContent, getGenreList } from './tmdbService.js';
+import { validateTitle, lookupTitle, discoverDiverseCatalog, getGenreList } from './tmdbService.js';
+
+// Fisher-Yates in-place shuffle
+function shuffleArray(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 
 // Build a concise catalog string from TMDB discover results for Claude's context
 async function buildAvailableCatalog(platformProviderIds, region) {
   const [movies, tvShows, movieGenres, tvGenres] = await Promise.all([
-    discoverContent(platformProviderIds, region, 'movie'),
-    discoverContent(platformProviderIds, region, 'tv'),
+    discoverDiverseCatalog(platformProviderIds, region, 'movie'),
+    discoverDiverseCatalog(platformProviderIds, region, 'tv'),
     getGenreList('movie'),
     getGenreList('tv'),
   ]);
@@ -23,7 +32,9 @@ async function buildAvailableCatalog(platformProviderIds, region) {
 
   const movieEntries = movies.map((m) => formatEntry(m, movieGenres, 'movie'));
   const tvEntries = tvShows.map((t) => formatEntry(t, tvGenres, 'tv'));
-  const catalog = [...movieEntries, ...tvEntries].join('\n');
+  const allEntries = [...movieEntries, ...tvEntries];
+  shuffleArray(allEntries);
+  const catalog = allEntries.join('\n');
 
   console.log(`[Recommend] Fetched catalog: ${movieEntries.length} movies + ${tvEntries.length} TV shows`);
   return catalog;

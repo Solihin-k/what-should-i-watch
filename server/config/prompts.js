@@ -17,6 +17,7 @@ RULES:
 - If the user's request is too vague to make good recommendations, return 0 recommendations and ask a clarifying question in followUpMessage.
 - Never re-suggest titles the user has already been told are unavailable.
 - Keep reasoning concise (1–2 sentences) explaining why each title matches the user's request.
+- Mix your 3 recommendations: include at least 1 title the user is unlikely to have already seen. Avoid recommending only blockbusters or titles that appear on every platform's homepage banner.
 
 You MUST use this exact JSON schema for every response:
 {

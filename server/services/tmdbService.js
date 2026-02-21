@@ -7,8 +7,8 @@ dotenv.config();
 // Genre lists are stable (~20 entries) — cache for 24 hours to avoid redundant calls
 const genreCache = new NodeCache({ stdTTL: 86400 });
 
-// Discover results cache — 1 hour TTL, avoids redundant TMDB calls for same platform+region combo
-const discoverCache = new NodeCache({ stdTTL: 3600 });
+// Discover results cache — 6 hour TTL, avoids redundant TMDB calls for same platform+region combo
+const discoverCache = new NodeCache({ stdTTL: 21600 });
 
 const tmdbClient = axios.create({
   baseURL: process.env.TMDB_API_BASE_URL,
@@ -162,6 +162,52 @@ async function lookupTitle({ title, year, type, region }) {
   return { ...enriched, mediaType };
 }
 
+// discoverDiverseCatalog — fetches 3 diverse pages of content per media type and deduplicates
+// Page 1: most popular; Page 2: top-rated (vote_count >= 50); Page 3: random deeper page (2-6) of popular
+async function discoverDiverseCatalog(providerIds, region, mediaType) {
+  const sortedIds = [...providerIds].sort((a, b) => a - b);
+  const cacheKey = `diverse_${sortedIds.join(',')}_${region}_${mediaType}`;
+  const cached = discoverCache.get(cacheKey);
+  if (cached) return cached;
+
+  const baseParams = {
+    watch_region: region,
+    with_watch_providers: providerIds.join('|'),
+    with_watch_monetization_types: 'flatrate',
+  };
+
+  const randomPage = Math.floor(Math.random() * 5) + 2; // 2-6
+
+  const [popularPage, topRatedPage, deeperPage] = await Promise.all([
+    tmdbClient.get(`/discover/${mediaType}`, {
+      params: { ...baseParams, sort_by: 'popularity.desc', page: 1 },
+    }),
+    tmdbClient.get(`/discover/${mediaType}`, {
+      params: { ...baseParams, sort_by: 'vote_average.desc', 'vote_count.gte': 50, page: 1 },
+    }),
+    tmdbClient.get(`/discover/${mediaType}`, {
+      params: { ...baseParams, sort_by: 'popularity.desc', page: randomPage },
+    }),
+  ]);
+
+  const allResults = [
+    ...(popularPage.data.results || []),
+    ...(topRatedPage.data.results || []),
+    ...(deeperPage.data.results || []),
+  ];
+
+  // Deduplicate by id — keep first occurrence
+  const seen = new Set();
+  const deduplicated = allResults.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+
+  discoverCache.set(cacheKey, deduplicated);
+  return deduplicated;
+}
+
 export {
   tmdbClient,
   searchContent,
@@ -169,6 +215,7 @@ export {
   getWatchProviders,
   enrichContent,
   discoverContent,
+  discoverDiverseCatalog,
   getGenreList,
   validateTitle,
   lookupTitle,

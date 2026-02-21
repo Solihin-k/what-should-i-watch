@@ -3,7 +3,7 @@ import { jest } from '@jest/globals';
 const mockGetRecommendations = jest.fn();
 const mockValidateTitle = jest.fn();
 const mockLookupTitle = jest.fn();
-const mockDiscoverContent = jest.fn();
+const mockDiscoverDiverseCatalog = jest.fn();
 const mockGetGenreList = jest.fn();
 
 jest.unstable_mockModule('../services/claudeService.js', () => ({
@@ -13,7 +13,7 @@ jest.unstable_mockModule('../services/claudeService.js', () => ({
 jest.unstable_mockModule('../services/tmdbService.js', () => ({
   validateTitle: mockValidateTitle,
   lookupTitle: mockLookupTitle,
-  discoverContent: mockDiscoverContent,
+  discoverDiverseCatalog: mockDiscoverDiverseCatalog,
   getGenreList: mockGetGenreList,
 }));
 
@@ -24,11 +24,11 @@ beforeEach(() => {
   mockGetRecommendations.mockReset();
   mockValidateTitle.mockReset();
   mockLookupTitle.mockReset();
-  mockDiscoverContent.mockReset();
+  mockDiscoverDiverseCatalog.mockReset();
   mockGetGenreList.mockReset();
 
   // Default: discover returns empty catalog, genre maps are empty
-  mockDiscoverContent.mockResolvedValue([]);
+  mockDiscoverDiverseCatalog.mockResolvedValue([]);
   mockGetGenreList.mockResolvedValue({});
 });
 
@@ -70,8 +70,8 @@ describe('generateRecommendations', () => {
     expect(result.followUpMessage).toBe('Enjoy!');
   });
 
-  it('pre-fetches catalog and passes it to Claude', async () => {
-    mockDiscoverContent.mockImplementation((_ids, _region, mediaType) => {
+  it('pre-fetches diverse catalog and passes it to Claude', async () => {
+    mockDiscoverDiverseCatalog.mockImplementation((_ids, _region, mediaType) => {
       if (mediaType === 'movie') {
         return Promise.resolve([
           { title: 'Funny Movie', release_date: '2023-06-01', genre_ids: [35], vote_average: 7.5 },
@@ -106,8 +106,8 @@ describe('generateRecommendations', () => {
 
     const result = await generateRecommendations(baseParams);
 
-    // Verify discover was called for both movie and tv
-    expect(mockDiscoverContent).toHaveBeenCalledTimes(2);
+    // Verify discoverDiverseCatalog was called for both movie and tv
+    expect(mockDiscoverDiverseCatalog).toHaveBeenCalledTimes(2);
     expect(mockGetGenreList).toHaveBeenCalledTimes(2);
 
     // Verify catalog was passed to Claude
@@ -116,6 +116,45 @@ describe('generateRecommendations', () => {
     expect(claudeCall.availableCatalog).toContain('Comedy Show (2022)');
 
     expect(result.recommendations).toHaveLength(3);
+  });
+
+  it('shuffles catalog entries before passing to Claude', async () => {
+    // Create enough entries to make shuffle detectable
+    const movies = Array.from({ length: 20 }, (_, i) => ({
+      title: `Movie ${i}`,
+      release_date: '2023-01-01',
+      genre_ids: [28],
+      vote_average: 7.0,
+    }));
+    const tvShows = Array.from({ length: 20 }, (_, i) => ({
+      name: `Show ${i}`,
+      first_air_date: '2023-01-01',
+      genre_ids: [18],
+      vote_average: 7.0,
+    }));
+
+    mockDiscoverDiverseCatalog.mockImplementation((_ids, _region, mediaType) => {
+      return Promise.resolve(mediaType === 'movie' ? movies : tvShows);
+    });
+    mockGetGenreList.mockResolvedValue({ 28: 'Action', 18: 'Drama' });
+
+    mockGetRecommendations.mockResolvedValueOnce({
+      recommendations: [],
+      followUpMessage: 'What genre?',
+    });
+
+    await generateRecommendations(baseParams);
+
+    const claudeCall = mockGetRecommendations.mock.calls[0][0];
+    const lines = claudeCall.availableCatalog.split('\n');
+
+    // With 40 entries, the chance that all movies come before all shows after shuffle is negligible
+    // Check that the entries are not perfectly ordered (all movies then all shows)
+    const firstShowIndex = lines.findIndex((l) => l.includes('[series]'));
+    const lastMovieIndex = lines.length - 1 - [...lines].reverse().findIndex((l) => l.includes('[movie]'));
+
+    // After shuffle, at least some shows should appear before the last movie
+    expect(firstShowIndex).toBeLessThan(lastMovieIndex);
   });
 
   it('handles partial availability — some titles unavailable', async () => {
@@ -216,8 +255,8 @@ describe('generateRecommendations', () => {
     expect(result.followUpMessage).toContain('trouble');
   });
 
-  it('proceeds without catalog if discover fails', async () => {
-    mockDiscoverContent.mockRejectedValue(new Error('TMDB rate limited'));
+  it('proceeds without catalog if diverse discover fails', async () => {
+    mockDiscoverDiverseCatalog.mockRejectedValue(new Error('TMDB rate limited'));
 
     mockGetRecommendations.mockResolvedValueOnce({
       recommendations: [
