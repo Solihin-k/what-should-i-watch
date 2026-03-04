@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import dotenv from 'dotenv';
-import { CLAUDE_MODEL, buildSystemPrompt } from '../config/prompts.js';
+import { CLAUDE_MODEL, buildSystemPrompt, buildTagExtractionPrompt, buildTitlePickingPrompt } from '../config/prompts.js';
 
 dotenv.config();
 
@@ -161,5 +161,124 @@ export async function getRecommendations({
       recommendations: [],
       followUpMessage: "I had trouble processing that. Could you rephrase what you're looking for?",
     };
+  }
+}
+
+const DEFAULT_TAGS = { moods: [], genres: [], bestFor: [], language: null, timeCommitment: null };
+
+export async function extractUserTags({ message, conversationHistory = [] }) {
+  const systemPrompt = buildTagExtractionPrompt();
+
+  const messages = conversationHistory.map((msg) => ({
+    role: msg.role,
+    content: msg.content,
+  }));
+  messages.push({ role: 'user', content: message });
+
+  console.log('[Claude] Extracting tags from:', message.substring(0, 80));
+
+  try {
+    const response = await client.messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: 256,
+      system: systemPrompt,
+      messages,
+    });
+    const responseText = response.content[0]?.text || '';
+    console.log('[Claude] Tag extraction raw:', responseText.substring(0, 300));
+
+    const parsed = parseClaudeResponse(responseText);
+    if (!parsed) {
+      console.warn('[Claude] Tag extraction parse failed, using defaults');
+      return DEFAULT_TAGS;
+    }
+
+    return {
+      moods: parsed.moods || [],
+      genres: parsed.genres || [],
+      bestFor: parsed.bestFor || [],
+      language: parsed.language || null,
+      timeCommitment: parsed.timeCommitment || null,
+    };
+  } catch (error) {
+    console.error('[Claude] Tag extraction error:', error.message);
+    return DEFAULT_TAGS;
+  }
+}
+
+export async function pickFromCandidates({ message, candidates, platforms, region, conversationHistory = [] }) {
+  const systemPrompt = buildTitlePickingPrompt({ platforms, region });
+
+  const messages = conversationHistory.map((msg) => ({
+    role: msg.role,
+    content: msg.content,
+  }));
+
+  // Format candidates as numbered list
+  const candidateList = candidates
+    .map((c, i) => {
+      const genres = (c.genres || []).join(', ');
+      const gem = c.hiddenGem ? ' \u2605 hidden gem' : '';
+      return `${i + 1}. ${c.title} (${c.year}) [${c.type}] \u2014 ${genres}${gem}`;
+    })
+    .join('\n');
+
+  const userContent = `${message}\n\n[Community-curated titles available:\n${candidateList}\n]`;
+  messages.push({ role: 'user', content: userContent });
+
+  console.log('[Claude] Picking from', candidates.length, 'candidates');
+
+  try {
+    let responseText = await callClaude({ systemPrompt, messages });
+    console.log('[Claude] Pick raw response:', responseText.substring(0, 500));
+
+    let parsed = parseClaudeResponse(responseText);
+
+    // Retry once if parse failed
+    if (!parsed) {
+      console.log('[Claude] Pick parse failed, retrying...');
+      responseText = await callClaude({ systemPrompt, messages });
+      parsed = parseClaudeResponse(responseText);
+    }
+
+    if (!parsed) {
+      console.error('[Claude] Pick parse failed after retry');
+      return { picks: [], followUpMessage: "I had trouble picking titles. Let me try a different approach." };
+    }
+
+    const picks = parsed.picks || [];
+    const followUpMessage = parsed.followUpMessage || '';
+
+    // Count validation: if 1-5 picks instead of 6, re-prompt once
+    if (picks.length > 0 && picks.length < 6) {
+      console.log(`[Claude] Got ${picks.length} picks, re-prompting for exactly 6`);
+      const retryMessages = [
+        ...messages,
+        { role: 'assistant', content: responseText },
+        { role: 'user', content: `You only provided ${picks.length} picks. Please provide exactly 6. Return the full JSON response again with exactly 6 picks.` },
+      ];
+
+      try {
+        const retryText = await callClaude({ systemPrompt, messages: retryMessages });
+        const retryParsed = parseClaudeResponse(retryText);
+        if (retryParsed && retryParsed.picks && retryParsed.picks.length === 6) {
+          return {
+            picks: retryParsed.picks,
+            followUpMessage: retryParsed.followUpMessage || followUpMessage,
+          };
+        }
+      } catch (retryErr) {
+        console.error('[Claude] Pick count-retry failed:', retryErr.message);
+      }
+    }
+
+    return { picks, followUpMessage };
+  } catch (error) {
+    console.error('[Claude] Pick API error:', { status: error.status, message: error.message });
+
+    if (error.status === 429) {
+      return { picks: [], followUpMessage: "I'm getting a lot of requests right now. Please try again in a moment." };
+    }
+    return { picks: [], followUpMessage: "I had trouble processing that. Could you rephrase what you're looking for?" };
   }
 }

@@ -23,6 +23,7 @@ export default function RecommendationCard({
   platforms = [],
   whyItMatches,
   unverified,
+  source,
 }) {
   const posterUrl = posterPath ? `${TMDB_IMAGE_BASE}${posterPath}` : null;
 
@@ -91,6 +92,16 @@ export default function RecommendationCard({
               </span>
             ))}
           </div>
+        )}
+        {source === 'community' && (
+          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 self-start">
+            Community Pick
+          </span>
+        )}
+        {source === 'popular' && platforms.length > 0 && (
+          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 self-start">
+            Popular on {platforms[0].name}
+          </span>
         )}
         {unverified && (
           <p className="text-xs text-gray-400 mt-1">

@@ -7,6 +7,7 @@ import platformsRouter from './routes/platforms.js';
 import recommendationsRouter from './routes/recommendations.js';
 import recommendRouter from './routes/recommend.js';
 import errorHandler from './middleware/errorHandler.js';
+import { loadRedditDb } from './services/redditDbLoader.js';
 
 dotenv.config();
 
@@ -27,6 +28,8 @@ app.use('/api', recommendRouter);
 
 // Error handler must be last
 app.use(errorHandler);
+
+loadRedditDb();
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

@@ -1,6 +1,8 @@
 import PLATFORMS from '../config/platforms.js';
-import { getRecommendations } from './claudeService.js';
+import { getRecommendations, extractUserTags, pickFromCandidates } from './claudeService.js';
 import { validateTitle, lookupTitle, discoverDiverseCatalog, getGenreList } from './tmdbService.js';
+import { getRedditDb } from './redditDbLoader.js';
+import { filterCandidates } from './titleMatcher.js';
 
 // Fisher-Yates in-place shuffle
 function shuffleArray(arr) {
@@ -45,15 +47,212 @@ async function buildAvailableCatalog(platformProviderIds, region) {
   return catalog;
 }
 
+// Build a validated recommendation object from TMDB data
+function buildRecommendation({ validated, selectedPlatforms, reasoning, source, unverified = false }) {
+  const releaseDate = validated.release_date || '';
+  const year = releaseDate ? new Date(releaseDate).getFullYear() : null;
+
+  const matchedPlatformObjects = unverified
+    ? selectedPlatforms.filter((p) => p.unverified)
+    : validated.matchedPlatforms
+        .map((provider) => selectedPlatforms.find((p) => p.tmdbProviderId === provider.provider_id))
+        .filter(Boolean);
+
+  return {
+    id: validated.id,
+    title: validated.title,
+    year,
+    mediaType: validated.mediaType,
+    posterPath: validated.poster_path || null,
+    rating: validated.vote_average ?? null,
+    genres: (validated.genres || []).map((g) => ({ id: g.id, name: g.name })),
+    platforms: matchedPlatformObjects.map((p) => ({
+      id: p.id,
+      name: p.name,
+      brandColor: p.brandColor,
+    })),
+    whyItMatches: reasoning,
+    overview: validated.overview || '',
+    source,
+    ...(unverified && { unverified: true }),
+  };
+}
+
+// Validate picks against TMDB, returning validated recommendations
+async function validatePicks({ picks, region, platformProviderIds, selectedPlatforms, source }) {
+  const recommendations = [];
+  const unavailableTitles = [];
+
+  for (let i = 0; i < picks.length; i++) {
+    const pick = picks[i];
+    try {
+      const result = await validateTitle({
+        title: pick.title,
+        year: pick.year,
+        type: pick.type,
+        region,
+        platformProviderIds,
+      });
+
+      if (result) {
+        recommendations.push(buildRecommendation({
+          validated: result,
+          selectedPlatforms,
+          reasoning: pick.reasoning,
+          source,
+        }));
+      } else {
+        unavailableTitles.push(pick);
+      }
+    } catch (err) {
+      console.error('[Recommend] TMDB lookup failed for', pick.title, ':', err.message);
+      unavailableTitles.push(pick);
+    }
+    if (i < picks.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+  }
+
+  return { recommendations, unavailableTitles };
+}
+
+// Recover unavailable titles for unverified platforms (e.g. Viki)
+async function recoverUnverified({ unavailableTitles, selectedPlatforms, region, source }) {
+  const unverifiedPlatforms = selectedPlatforms.filter((p) => p.unverified);
+  if (unverifiedPlatforms.length === 0 || unavailableTitles.length === 0) return [];
+
+  const recovered = [];
+  for (const pick of unavailableTitles) {
+    try {
+      const looked = await lookupTitle({
+        title: pick.title,
+        year: pick.year,
+        type: pick.type,
+        region,
+      });
+      if (looked) {
+        recovered.push(buildRecommendation({
+          validated: looked,
+          selectedPlatforms,
+          reasoning: pick.reasoning,
+          source,
+          unverified: true,
+        }));
+      }
+    } catch (err) {
+      console.error('[Recommend] Fallback lookup failed for', pick.title, ':', err.message);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+
+  if (recovered.length > 0) {
+    console.log('[Recommend] Recovered', recovered.length, 'titles via unverified fallback');
+  }
+  return recovered;
+}
+
 export async function generateRecommendations({ message, platforms, region, conversationHistory = [] }) {
-  // Map platform IDs to full platform objects and TMDB provider IDs
   const selectedPlatforms = platforms
     .map((id) => PLATFORMS.find((p) => p.id === id))
     .filter(Boolean);
 
   const platformProviderIds = selectedPlatforms.map((p) => p.tmdbProviderId);
 
-  // Pre-fetch available catalog from TMDB so Claude picks from verified-available content
+  // Step 1: Load Reddit DB
+  const redditDb = getRedditDb();
+  const useRedditPath = redditDb.length > 0;
+
+  if (useRedditPath) {
+    console.log('[Recommend] Using Reddit-curated path with', redditDb.length, 'titles');
+
+    // Step 2: Extract tags (Claude #1)
+    const extractedTags = await extractUserTags({ message, conversationHistory });
+    console.log('[Recommend] Extracted tags:', JSON.stringify(extractedTags));
+
+    // Step 3: Filter candidates
+    const candidates = filterCandidates({ redditDb, extractedTags, region });
+    console.log('[Recommend] Filtered to', candidates.length, 'candidates');
+
+    if (candidates.length > 0) {
+      // Step 4: Pick from candidates (Claude #2)
+      const pickResult = await pickFromCandidates({
+        message,
+        candidates,
+        platforms: selectedPlatforms,
+        region,
+        conversationHistory,
+      });
+
+      // Clarifying question — pass through
+      if (pickResult.picks.length === 0) {
+        return {
+          recommendations: [],
+          followUpMessage: pickResult.followUpMessage,
+        };
+      }
+
+      console.log('[Recommend] Claude picked', pickResult.picks.length, 'titles');
+
+      // Step 5: Validate picks against TMDB
+      const { recommendations: communityRecs, unavailableTitles } = await validatePicks({
+        picks: pickResult.picks,
+        region,
+        platformProviderIds,
+        selectedPlatforms,
+        source: 'community',
+      });
+
+      // Recover unavailable via unverified platforms
+      const recoveredRecs = await recoverUnverified({
+        unavailableTitles,
+        selectedPlatforms,
+        region,
+        source: 'community',
+      });
+
+      const allCommunityRecs = [...communityRecs, ...recoveredRecs];
+      console.log('[Recommend] Community validated:', allCommunityRecs.length, '| unavailable:', unavailableTitles.length - recoveredRecs.length);
+
+      // Step 6: Fallback if < 3 validated
+      if (allCommunityRecs.length >= 3) {
+        return {
+          recommendations: allCommunityRecs.slice(0, 3),
+          followUpMessage: pickResult.followUpMessage,
+        };
+      }
+
+      console.log('[Recommend] Only', allCommunityRecs.length, 'community recs, falling back to TMDB');
+
+      // Fill remaining slots from TMDB path
+      const needed = 3 - allCommunityRecs.length;
+      const tmdbResult = await tmdbFallbackPath({
+        message,
+        selectedPlatforms,
+        platformProviderIds,
+        region,
+        conversationHistory,
+        excludeTitles: allCommunityRecs.map((r) => r.title),
+      });
+
+      const finalRecs = [...allCommunityRecs, ...tmdbResult.recommendations.slice(0, needed)];
+      return {
+        recommendations: finalRecs.slice(0, 3),
+        followUpMessage: pickResult.followUpMessage,
+        unavailableTitles: unavailableTitles
+          .filter((t) => !recoveredRecs.some((r) => r.title === t.title))
+          .map((t) => t.title),
+      };
+    }
+  }
+
+  // No Reddit DB or no candidates — full TMDB fallback
+  console.log('[Recommend] Using TMDB fallback path');
+  const result = await tmdbFallbackPath({ message, selectedPlatforms, platformProviderIds, region, conversationHistory });
+  return result;
+}
+
+// Original TMDB-based recommendation flow
+async function tmdbFallbackPath({ message, selectedPlatforms, platformProviderIds, region, conversationHistory, excludeTitles = [] }) {
   let availableCatalog = '';
   try {
     availableCatalog = await buildAvailableCatalog(platformProviderIds, region);
@@ -61,7 +260,6 @@ export async function generateRecommendations({ message, platforms, region, conv
     console.error('[Recommend] Failed to fetch catalog, proceeding without:', err.message);
   }
 
-  // Get Claude's recommendations — graceful fallback if Claude is entirely unreachable
   console.log('[Recommend] Calling Claude for:', message.substring(0, 80), '| Platforms:', selectedPlatforms.map((p) => p.id).join(', '));
   let claudeResult;
   try {
@@ -71,6 +269,7 @@ export async function generateRecommendations({ message, platforms, region, conv
       region,
       conversationHistory,
       availableCatalog,
+      unavailableTitles: excludeTitles,
     });
     console.log('[Recommend] Claude returned', claudeResult.recommendations.length, 'recommendations');
   } catch (err) {
@@ -81,7 +280,6 @@ export async function generateRecommendations({ message, platforms, region, conv
     };
   }
 
-  // If Claude returned a clarifying question or fallback (0 recommendations), pass it through
   if (claudeResult.recommendations.length === 0) {
     return {
       recommendations: [],
@@ -90,122 +288,34 @@ export async function generateRecommendations({ message, platforms, region, conv
     };
   }
 
-  // Validate each recommendation against TMDB sequentially with delay to avoid rate limits
-  const validationResults = [];
-  for (let i = 0; i < claudeResult.recommendations.length; i++) {
-    const rec = claudeResult.recommendations[i];
-    try {
-      const result = await validateTitle({
-        title: rec.title,
-        year: rec.year,
-        type: rec.type,
-        region,
-        platformProviderIds,
-      });
-      validationResults.push({ status: 'fulfilled', value: result });
-    } catch (err) {
-      console.error('[Recommend] TMDB lookup failed for', rec.title, ':', err.message);
-      validationResults.push({ status: 'rejected', reason: err });
-    }
-    // Rate limit: 200ms between TMDB requests
-    if (i < claudeResult.recommendations.length - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
-  }
-
-  const recommendations = [];
-  const unavailableTitles = [];
-  console.log('[Recommend] Validating', validationResults.length, 'titles against TMDB');
-
-  validationResults.forEach((result, index) => {
-    const rec = claudeResult.recommendations[index];
-
-    if (result.status === 'fulfilled' && result.value) {
-      const validated = result.value;
-      const releaseDate = validated.release_date || '';
-      const year = releaseDate ? new Date(releaseDate).getFullYear() : null;
-
-      // Map matched TMDB providers back to our platform objects for display
-      const matchedPlatformObjects = validated.matchedPlatforms
-        .map((provider) => selectedPlatforms.find((p) => p.tmdbProviderId === provider.provider_id))
-        .filter(Boolean);
-
-      recommendations.push({
-        id: validated.id,
-        title: validated.title,
-        year,
-        mediaType: validated.mediaType,
-        posterPath: validated.poster_path || null,
-        rating: validated.vote_average ?? null,
-        genres: (validated.genres || []).map((g) => ({ id: g.id, name: g.name })),
-        platforms: matchedPlatformObjects.map((p) => ({
-          id: p.id,
-          name: p.name,
-          brandColor: p.brandColor,
-        })),
-        whyItMatches: rec.reasoning,
-        overview: validated.overview || '',
-      });
-    } else {
-      unavailableTitles.push(rec.title);
-    }
+  // Validate against TMDB
+  const { recommendations, unavailableTitles } = await validatePicks({
+    picks: claudeResult.recommendations,
+    region,
+    platformProviderIds,
+    selectedPlatforms,
+    source: 'popular',
   });
 
-  console.log('[Recommend] Validated:', recommendations.length, 'available |', unavailableTitles.length, 'unavailable:', unavailableTitles.join(', ') || 'none');
+  // Recover via unverified platforms
+  const recoveredRecs = await recoverUnverified({
+    unavailableTitles: unavailableTitles.map((t) => {
+      const orig = claudeResult.recommendations.find((r) => r.title === t.title);
+      return orig || t;
+    }),
+    selectedPlatforms,
+    region,
+    source: 'popular',
+  });
 
-  // Fallback: recover unavailable titles for unverified platforms (e.g. Viki)
-  const unverifiedPlatforms = selectedPlatforms.filter((p) => p.unverified);
-  if (unverifiedPlatforms.length > 0 && unavailableTitles.length > 0) {
-    const recoveredTitles = [];
-    for (const titleName of [...unavailableTitles]) {
-      const originalRec = claudeResult.recommendations.find((r) => r.title === titleName);
-      if (!originalRec) continue;
-      try {
-        const looked = await lookupTitle({
-          title: originalRec.title,
-          year: originalRec.year,
-          type: originalRec.type,
-          region,
-        });
-        if (looked) {
-          const releaseDate = looked.release_date || '';
-          const year = releaseDate ? new Date(releaseDate).getFullYear() : null;
-          recommendations.push({
-            id: looked.id,
-            title: looked.title,
-            year,
-            mediaType: looked.mediaType,
-            posterPath: looked.poster_path || null,
-            rating: looked.vote_average ?? null,
-            genres: (looked.genres || []).map((g) => ({ id: g.id, name: g.name })),
-            platforms: unverifiedPlatforms.map((p) => ({
-              id: p.id,
-              name: p.name,
-              brandColor: p.brandColor,
-            })),
-            whyItMatches: originalRec.reasoning,
-            overview: looked.overview || '',
-            unverified: true,
-          });
-          recoveredTitles.push(titleName);
-        }
-      } catch (err) {
-        console.error('[Recommend] Fallback lookup failed for', titleName, ':', err.message);
-      }
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
-    for (const t of recoveredTitles) {
-      const idx = unavailableTitles.indexOf(t);
-      if (idx !== -1) unavailableTitles.splice(idx, 1);
-    }
-    console.log('[Recommend] Recovered', recoveredTitles.length, 'titles via unverified fallback');
-  }
-
-  const finalRecommendations = recommendations.slice(0, 3);
+  const allRecs = [...recommendations, ...recoveredRecs];
+  const finalRecommendations = allRecs.slice(0, 3);
 
   return {
     recommendations: finalRecommendations,
     followUpMessage: claudeResult.followUpMessage,
-    unavailableTitles,
+    unavailableTitles: unavailableTitles
+      .filter((t) => !recoveredRecs.some((r) => r.title === (t.title || t)))
+      .map((t) => t.title || t),
   };
 }
