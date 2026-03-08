@@ -4,10 +4,17 @@ import { sendChatMessage } from '../services/api.js';
 const GREETING = "Hey! Tell me what you're in the mood for — how are you feeling, who's watching, and how much time do you have?";
 
 const SUGGESTION_CHIPS = [
-  { label: '😴 Tired after work', message: 'Tired after work' },
-  { label: '🎉 Date night', message: 'Date night' },
-  { label: '🍿 Quick laugh', message: 'Quick laugh' },
-  { label: '🎭 Something deep', message: 'Something deep' },
+  { icon: '😴', label: 'Tired after work', message: 'Tired after work' },
+  { icon: '🎉', label: 'Date night', message: 'Date night' },
+  { icon: '🍿', label: 'Quick laugh', message: 'Quick laugh' },
+  { icon: '🎭', label: 'Something deep', message: 'Something deep' },
+];
+
+const FOLLOW_UP_CHIPS = [
+  { icon: '🔄', label: 'More like these', message: 'Show me more like these' },
+  { icon: '💎', label: 'Less mainstream', message: 'Something less mainstream' },
+  { icon: '🎨', label: 'Different mood', message: 'Different mood' },
+  { icon: '🌐', label: 'Different language', message: 'Different language' },
 ];
 
 function createGreeting() {
@@ -105,6 +112,18 @@ export function useChat(selectedPlatforms, region) {
     }
   }, [sendMessage]);
 
+  const injectInitialRecommendations = useCallback((summaryMessage, response) => {
+    const userMsg = { role: 'user', content: summaryMessage, recommendations: [] };
+    const assistantMsg = {
+      role: 'assistant',
+      content: response.followUpMessage || 'Here are my picks for you!',
+      recommendations: response.recommendations || [],
+      chips: FOLLOW_UP_CHIPS,
+    };
+    setMessages([userMsg, assistantMsg]);
+    setError(null);
+  }, []);
+
   const resetChat = useCallback(() => {
     cancelledRef.current = true;
     setMessages([createGreeting()]);
@@ -112,5 +131,5 @@ export function useChat(selectedPlatforms, region) {
     setError(null);
   }, []);
 
-  return { messages, sendMessage, loading, error, resetChat, retryLastMessage };
+  return { messages, sendMessage, loading, error, resetChat, retryLastMessage, injectInitialRecommendations };
 }

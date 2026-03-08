@@ -99,11 +99,13 @@ export function filterCandidates({ redditDb, extractedTags, region, maxCandidate
   // Language preference: soft-boost matching titles to front within the top candidates
   let candidates = scored.slice(0, maxCandidates);
   if (language) {
-    const langLower = language.toLowerCase();
+    const langSet = Array.isArray(language)
+      ? new Set(language.map((l) => l.toLowerCase()))
+      : new Set([language.toLowerCase()]);
     const langMatch = [];
     const langOther = [];
     for (const c of candidates) {
-      if (c.language && c.language.toLowerCase() === langLower) {
+      if (c.language && langSet.has(c.language.toLowerCase())) {
         langMatch.push(c);
       } else {
         langOther.push(c);

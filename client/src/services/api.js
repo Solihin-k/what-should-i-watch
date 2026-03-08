@@ -29,6 +29,18 @@ export async function sendChatMessage({ message, platforms, region, conversation
   return response.json();
 }
 
+export async function sendGuidedRecommendation({ tags, platforms, region }) {
+  const response = await fetch(`${API_BASE_URL}/api/recommend/guided`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tags, platforms, region }),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to get guided recommendations');
+  }
+  return response.json();
+}
+
 export async function getRecommendations(platformIds, region) {
   const params = new URLSearchParams();
   if (platformIds && platformIds.length > 0) {

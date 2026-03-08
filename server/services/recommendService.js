@@ -151,6 +151,132 @@ async function recoverUnverified({ unavailableTitles, selectedPlatforms, region,
   return recovered;
 }
 
+export async function generateGuidedRecommendations({ tags, platforms, region }) {
+  const selectedPlatforms = platforms
+    .map((id) => PLATFORMS.find((p) => p.id === id))
+    .filter(Boolean);
+
+  const platformProviderIds = selectedPlatforms.map((p) => p.tmdbProviderId);
+
+  // Build a synthetic message from structured tags for Claude's context
+  const parts = [];
+  if (tags.moods?.length) parts.push(`something ${tags.moods.join('/')} in mood`);
+  if (tags.genres?.length) parts.push(`in the ${tags.genres.join(', ')} genre(s)`);
+  if (tags.bestFor?.length) parts.push(`good for ${tags.bestFor.join(', ')}`);
+  if (tags.contentType === 'series') {
+    parts.push('only TV series (no movies)');
+  } else if (tags.contentType === 'movie') {
+    parts.push('movies only (no TV series)');
+  } else if (tags.timeCommitment) {
+    parts.push(tags.timeCommitment === 'short' ? 'movie-length or short episodes' : 'TV series to binge');
+  }
+  if (tags.language) {
+    const lang = Array.isArray(tags.language) ? tags.language.join('/') : tags.language;
+    parts.push(`in ${lang}`);
+  }
+  if (tags.boostHiddenGem) parts.push('preferably hidden gems or lesser-known titles');
+  const syntheticMessage = parts.length > 0
+    ? `I want to watch ${parts.join(', ')}`
+    : 'Recommend me something good to watch';
+
+  console.log('[Recommend:Guided] Synthetic message:', syntheticMessage);
+
+  // Load Reddit DB
+  const redditDb = getRedditDb();
+
+  // Apply hidden gem boost if requested
+  const extractedTags = { ...tags };
+  let candidateDb = redditDb;
+  if (tags.boostHiddenGem && redditDb.length > 0) {
+    candidateDb = redditDb.map((title) =>
+      title.hiddenGem ? { ...title, _hiddenGemBoost: true } : title
+    );
+  }
+
+  if (candidateDb.length > 0) {
+    console.log('[Recommend:Guided] Using Reddit-curated path with', candidateDb.length, 'titles');
+
+    const candidates = filterCandidates({ redditDb: candidateDb, extractedTags, region });
+
+    // Apply extra hidden gem boost in scoring
+    const boostedCandidates = tags.boostHiddenGem
+      ? candidates.map((c) => c._hiddenGemBoost ? { ...c, _score: (c._score || 0) + 5 } : c)
+          .sort((a, b) => b._score - a._score)
+      : candidates;
+
+    console.log('[Recommend:Guided] Filtered to', boostedCandidates.length, 'candidates');
+
+    if (boostedCandidates.length > 0) {
+      const pickResult = await pickFromCandidates({
+        message: syntheticMessage,
+        candidates: boostedCandidates,
+        platforms: selectedPlatforms,
+        region,
+        conversationHistory: [],
+      });
+
+      if (pickResult.picks.length === 0) {
+        return {
+          recommendations: [],
+          followUpMessage: pickResult.followUpMessage,
+        };
+      }
+
+      console.log('[Recommend:Guided] Claude picked', pickResult.picks.length, 'titles');
+
+      const { recommendations: communityRecs, unavailableTitles } = await validatePicks({
+        picks: pickResult.picks,
+        region,
+        platformProviderIds,
+        selectedPlatforms,
+        source: 'community',
+      });
+
+      const recoveredRecs = await recoverUnverified({
+        unavailableTitles,
+        selectedPlatforms,
+        region,
+        source: 'community',
+      });
+
+      const allCommunityRecs = [...communityRecs, ...recoveredRecs];
+
+      if (allCommunityRecs.length >= 3) {
+        return {
+          recommendations: allCommunityRecs.slice(0, 3),
+          followUpMessage: pickResult.followUpMessage,
+        };
+      }
+
+      // Fill remaining from TMDB fallback
+      const needed = 3 - allCommunityRecs.length;
+      const tmdbResult = await tmdbFallbackPath({
+        message: syntheticMessage,
+        selectedPlatforms,
+        platformProviderIds,
+        region,
+        conversationHistory: [],
+        excludeTitles: allCommunityRecs.map((r) => r.title),
+      });
+
+      return {
+        recommendations: [...allCommunityRecs, ...tmdbResult.recommendations.slice(0, needed)].slice(0, 3),
+        followUpMessage: pickResult.followUpMessage,
+      };
+    }
+  }
+
+  // Fallback to TMDB path
+  console.log('[Recommend:Guided] Using TMDB fallback path');
+  return tmdbFallbackPath({
+    message: syntheticMessage,
+    selectedPlatforms,
+    platformProviderIds,
+    region,
+    conversationHistory: [],
+  });
+}
+
 export async function generateRecommendations({ message, platforms, region, conversationHistory = [] }) {
   const selectedPlatforms = platforms
     .map((id) => PLATFORMS.find((p) => p.id === id))
