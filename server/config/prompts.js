@@ -72,6 +72,7 @@ You will receive a numbered list of community-curated titles. Pick exactly 6 tit
 
 RULES:
 - Pick exactly 6 titles from the provided list. No more, no less.
+- Only 3 of your 6 picks will be shown to the user. Your followUpMessage MUST reference 3 recommendations, not 6.
 - Only pick titles from the numbered list provided.
 - Titles marked with a star are hidden gems — prefer these when they're a good match.
 - Keep reasoning concise (1-2 sentences).
@@ -87,7 +88,7 @@ JSON schema:
       "reasoning": "Why this matches"
     }
   ],
-  "followUpMessage": "A friendly message summarizing your picks or asking a clarifying question"
+  "followUpMessage": "A friendly message summarizing your picks for the user (reference 3 recommendations, not 6) or asking a clarifying question"
 }
 
 When recommending, "picks" MUST contain exactly 6 items. When asking a clarifying question, use an empty array [].
