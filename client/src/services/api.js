@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
 export async function getPlatforms(region) {
   const params = region ? `?region=${region}` : '';
@@ -37,6 +37,18 @@ export async function sendGuidedRecommendation({ tags, platforms, region }) {
   });
   if (!response.ok) {
     throw new Error('Failed to get guided recommendations');
+  }
+  return response.json();
+}
+
+export async function sendFeedback(title, feedback) {
+  const response = await fetch(`${API_BASE_URL}/api/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, feedback }),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to send feedback');
   }
   return response.json();
 }

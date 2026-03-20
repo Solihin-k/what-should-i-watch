@@ -63,7 +63,7 @@ export default function ChatMessage({ role, content, recommendations = [], chips
         {!isUser && retryable && onRetry && recommendations.length === 0 && content && (
           <button
             onClick={onRetry}
-            className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+            className="mt-2 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors px-3 py-1.5"
           >
             Try again
           </button>

@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { sendFeedback } from '../services/api.js';
+
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
 
 // Star rating — rounds to nearest half star visually, shows numeric score
@@ -26,6 +29,16 @@ export default function RecommendationCard({
   source,
 }) {
   const posterUrl = posterPath ? `${TMDB_IMAGE_BASE}${posterPath}` : null;
+  const [feedback, setFeedback] = useState(null);
+
+  const handleFeedback = async (type) => {
+    setFeedback(type);
+    try {
+      await sendFeedback(title, type);
+    } catch {
+      // Feedback is best-effort — don't disrupt UX
+    }
+  };
 
   return (
     <div className="bg-white rounded-2xl shadow-md overflow-hidden flex flex-col sm:flex-row">
@@ -115,6 +128,42 @@ export default function RecommendationCard({
             {whyItMatches}
           </p>
         )}
+
+        {/* Feedback */}
+        <div className="flex items-center gap-1 mt-1">
+          <button
+            type="button"
+            onClick={() => handleFeedback('up')}
+            disabled={feedback !== null}
+            className={[
+              'w-9 h-9 flex items-center justify-center rounded-full transition-colors text-sm',
+              feedback === 'up'
+                ? 'bg-green-100 text-green-600'
+                : feedback === null
+                  ? 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+                  : 'text-gray-300',
+            ].join(' ')}
+            aria-label="Thumbs up"
+          >
+            👍
+          </button>
+          <button
+            type="button"
+            onClick={() => handleFeedback('down')}
+            disabled={feedback !== null}
+            className={[
+              'w-9 h-9 flex items-center justify-center rounded-full transition-colors text-sm',
+              feedback === 'down'
+                ? 'bg-red-100 text-red-600'
+                : feedback === null
+                  ? 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+                  : 'text-gray-300',
+            ].join(' ')}
+            aria-label="Thumbs down"
+          >
+            👎
+          </button>
+        </div>
       </div>
     </div>
   );

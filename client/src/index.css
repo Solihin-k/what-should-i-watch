@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+button, a, [role="button"] {
+  touch-action: manipulation;
+}
+
 @keyframes fadeSlideIn {
   from {
     opacity: 0;

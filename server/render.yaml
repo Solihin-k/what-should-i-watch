@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: what-should-i-watch-api
+    runtime: node
+    buildCommand: cd server && npm install
+    startCommand: cd server && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: TMDB_API_KEY
+        sync: false
+      - key: WATCHMODE_API_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: PORT
+        value: 3001

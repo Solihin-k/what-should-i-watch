@@ -90,7 +90,7 @@ export default function GuidedFlow({ onComplete, selectedPlatforms, region }) {
         <button
           type="button"
           onClick={goBack}
-          className="self-start text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 transition-colors"
+          className="self-start text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 transition-colors py-2 px-3"
         >
           <span>←</span> Back
         </button>
