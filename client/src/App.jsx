@@ -62,9 +62,12 @@ export default function App() {
         <button
           type="button"
           onClick={handleChangePlatforms}
-          className="text-xs text-indigo-600 hover:text-indigo-800 ml-auto"
+          className="ml-auto px-2.5 py-1 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 transition-colors flex items-center gap-1 text-xs"
         >
-          Change
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+            <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
+          </svg>
+          Edit
         </button>
       </div>
     );
@@ -139,9 +142,12 @@ export default function App() {
             <button
               type="button"
               onClick={handleStartOver}
-              className="shrink-0 text-sm text-gray-500 hover:text-gray-700 text-center py-2 transition-colors"
+              className="shrink-0 w-full py-3 border-2 border-gray-300 rounded-xl font-medium text-gray-700 hover:bg-gray-100 active:scale-[0.98] transition-all duration-150 flex items-center justify-center gap-2"
             >
-              Start over
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.433a.75.75 0 000-1.5H4.598a.75.75 0 00-.75.75v3.634a.75.75 0 001.5 0v-2.134l.218.216a7 7 0 0011.712-3.138.75.75 0 00-1.449-.39c-.3.11-.6.245-.517.407zm.176-8.058a.75.75 0 00-1.5 0v2.134l-.218-.216a7 7 0 00-11.712 3.138.75.75 0 001.449.39 5.5 5.5 0 019.201-2.466l.312.311h-2.433a.75.75 0 000 1.5H15.22a.75.75 0 00.75-.75V3.366z" clipRule="evenodd" />
+              </svg>
+              Start Over
             </button>
           </>
         )}

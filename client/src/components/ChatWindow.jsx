@@ -1,6 +1,5 @@
 import { useRef, useEffect } from 'react';
 import ChatMessage from './ChatMessage.jsx';
-import ChatInput from './ChatInput.jsx';
 
 function TypingIndicator() {
   return (
@@ -46,10 +45,6 @@ export default function ChatWindow({ messages, onSend, loading, error, onRetry }
         <div ref={bottomRef} />
       </div>
 
-      {/* Input area */}
-      <div className="pt-3 border-t border-gray-200">
-        <ChatInput onSend={onSend} disabled={loading} />
-      </div>
     </div>
   );
 }
