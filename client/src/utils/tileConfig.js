@@ -36,9 +36,11 @@ export const STEPS = [
     question: 'Any content preference?',
     multiSelect: true,
     tiles: [
-      { id: 'korean', label: 'K-Drama', icon: '🇰🇷', tags: { language: 'Korean' } },
-      { id: 'anime', label: 'Anime', icon: '🇯🇵', tags: { language: 'Japanese', genres: ['anime'] } },
-      { id: 'asian', label: 'Asian', icon: '🌏', tags: { language: ['Mandarin', 'Cantonese', 'Thai', 'Vietnamese', 'Indonesian', 'Filipino'] } },
+      { id: 'korean', label: 'K-Drama / Korean', icon: '🇰🇷', tags: { language: 'Korean' } },
+      { id: 'anime', label: 'Anime / Japanese', icon: '🇯🇵', tags: { language: 'Japanese', genres: ['anime'] } },
+      { id: 'sea', label: 'Southeast Asian', icon: '🌏', tags: { language: ['Thai', 'Filipino', 'Vietnamese', 'Indonesian', 'Malay'] } },
+      { id: 'east-asian', label: 'East Asian', icon: '🀄', tags: { language: ['Mandarin', 'Cantonese', 'Taiwanese'] } },
+      { id: 'european', label: 'European', icon: '🇪🇺', tags: { language: ['Danish', 'Swedish', 'French', 'German', 'Spanish', 'Norwegian', 'Finnish', 'Polish', 'Persian', 'Italian', 'Dutch', 'Icelandic', 'Romanian', 'Portuguese'] } },
       { id: 'english', label: 'English', icon: '🌍', tags: { language: 'English' } },
       { id: 'surprise', label: 'Surprise Me', icon: '🎲', tags: { language: null, boostHiddenGem: true } },
     ],
@@ -63,7 +65,18 @@ export function buildTagsFromSelections(selections) {
       if (tags.moods) merged.moods.push(...tags.moods);
       if (tags.genres) merged.genres.push(...tags.genres);
       if (tags.bestFor) merged.bestFor.push(...tags.bestFor);
-      if (tags.language !== undefined) merged.language = tags.language;
+      if (tags.language !== undefined) {
+        if (tags.language === null) {
+          // "Surprise Me" — keep null (no language filter)
+          merged.language = null;
+        } else if (merged.language === null) {
+          merged.language = Array.isArray(tags.language) ? [...tags.language] : [tags.language];
+        } else {
+          const existing = Array.isArray(merged.language) ? merged.language : [merged.language];
+          const incoming = Array.isArray(tags.language) ? tags.language : [tags.language];
+          merged.language = [...existing, ...incoming];
+        }
+      }
       if (tags.timeCommitment) merged.timeCommitment = tags.timeCommitment;
       if (tags.contentType) merged.contentType = tags.contentType;
       if (tags.boostHiddenGem) merged.boostHiddenGem = true;
