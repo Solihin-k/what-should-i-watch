@@ -3,25 +3,13 @@ import { sendFeedback } from '../services/api.js';
 
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w500';
 
-// Star rating — rounds to nearest half star visually, shows numeric score
-function StarRating({ rating }) {
-  const stars = Math.round((rating / 10) * 5 * 2) / 2;
-  return (
-    <div className="flex items-center gap-1">
-      <span className="text-yellow-400 text-sm">{'★'.repeat(Math.floor(stars))}</span>
-      <span className="text-xs text-gray-500">{rating.toFixed(1)}/10</span>
-    </div>
-  );
-}
-
 // RecommendationCard displays a single content recommendation
-// Props: title, year, mediaType, posterPath, rating, genres, platforms, whyItMatches
+// Props: title, year, mediaType, posterPath, genres, platforms, whyItMatches
 export default function RecommendationCard({
   title,
   year,
   mediaType,
   posterPath,
-  rating,
   genres = [],
   platforms = [],
   whyItMatches,
@@ -75,9 +63,6 @@ export default function RecommendationCard({
             {mediaType === 'movie' ? 'Movie' : 'Series'}
           </span>
         </div>
-
-        {/* Rating */}
-        {rating != null && <StarRating rating={rating} />}
 
         {/* Genres */}
         {genres.length > 0 && (
