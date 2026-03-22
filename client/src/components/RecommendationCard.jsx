@@ -97,11 +97,6 @@ export default function RecommendationCard({
             Community Pick
           </span>
         )}
-        {source === 'popular' && platforms.length > 0 && (
-          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 self-start">
-            Popular on {platforms[0].name}
-          </span>
-        )}
         {unverified && (
           <p className="text-xs text-gray-400 mt-1">
             Availability may vary — check Viki to confirm
