@@ -90,6 +90,16 @@ export function filterCandidates({ redditDb, extractedTags, region, maxCandidate
       }
     }
 
+    // Language matching (+10 per match) — dominant signal when user explicitly selects a language
+    if (language && title.language) {
+      const langSet = Array.isArray(language)
+        ? new Set(language.map((l) => l.toLowerCase()))
+        : new Set([language.toLowerCase()]);
+      if (langSet.has(title.language.toLowerCase())) {
+        score += 10;
+      }
+    }
+
     return { ...title, _score: score };
   });
 

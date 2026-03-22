@@ -4,6 +4,25 @@ import { validateTitle, lookupTitle, discoverDiverseCatalog, getGenreList } from
 import { getRedditDb } from './redditDbLoader.js';
 import { filterCandidates } from './titleMatcher.js';
 
+// Language display name → ISO 639-1 code mapping
+const LANGUAGE_CODES = {
+  danish: 'da', swedish: 'sv', french: 'fr', german: 'de', spanish: 'es',
+  norwegian: 'no', finnish: 'fi', polish: 'pl', persian: 'fa', italian: 'it',
+  dutch: 'nl', icelandic: 'is', romanian: 'ro', portuguese: 'pt',
+  korean: 'ko', japanese: 'ja', thai: 'th', filipino: 'tl', vietnamese: 'vi',
+  indonesian: 'id', malay: 'ms', mandarin: 'zh', cantonese: 'zh', taiwanese: 'zh',
+  english: 'en',
+};
+
+function languageNamesToIsoCodes(language) {
+  if (!language) return null;
+  const names = Array.isArray(language) ? language : [language];
+  const codes = [...new Set(
+    names.map((n) => LANGUAGE_CODES[n.toLowerCase()]).filter(Boolean)
+  )];
+  return codes.length > 0 ? codes : null;
+}
+
 // Fisher-Yates in-place shuffle
 function shuffleArray(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
@@ -14,7 +33,7 @@ function shuffleArray(arr) {
 }
 
 // Build a concise catalog string from TMDB discover results for Claude's context
-async function buildAvailableCatalog(platformProviderIds, region) {
+async function buildAvailableCatalog(platformProviderIds, region, languageCodes) {
   // Genre lists are cached 24h — always safe to fetch in parallel
   const [movieGenres, tvGenres] = await Promise.all([
     getGenreList('movie'),
@@ -23,9 +42,9 @@ async function buildAvailableCatalog(platformProviderIds, region) {
 
   // Stagger discover calls to avoid TMDB rate limits on cold cache:
   // movies first (3 TMDB calls), then 250ms delay, then TV (3 TMDB calls)
-  const movies = await discoverDiverseCatalog(platformProviderIds, region, 'movie');
+  const movies = await discoverDiverseCatalog(platformProviderIds, region, 'movie', languageCodes);
   await new Promise((resolve) => setTimeout(resolve, 250));
-  const tvShows = await discoverDiverseCatalog(platformProviderIds, region, 'tv');
+  const tvShows = await discoverDiverseCatalog(platformProviderIds, region, 'tv', languageCodes);
 
   const formatEntry = (item, genreMap, mediaType) => {
     const title = item.title || item.name;
@@ -261,6 +280,7 @@ export async function generateGuidedRecommendations({ tags, platforms, region })
         region,
         conversationHistory: [],
         excludeTitles: allCommunityRecs.map((r) => r.title),
+        languageCodes: languageNamesToIsoCodes(tags.language),
       });
 
       return {
@@ -278,6 +298,7 @@ export async function generateGuidedRecommendations({ tags, platforms, region })
     platformProviderIds,
     region,
     conversationHistory: [],
+    languageCodes: languageNamesToIsoCodes(tags.language),
   });
 }
 
@@ -363,6 +384,7 @@ export async function generateRecommendations({ message, platforms, region, conv
         region,
         conversationHistory,
         excludeTitles: allCommunityRecs.map((r) => r.title),
+        languageCodes: languageNamesToIsoCodes(extractedTags.language),
       });
 
       const finalRecs = [...allCommunityRecs, ...tmdbResult.recommendations.slice(0, needed)];
@@ -383,10 +405,10 @@ export async function generateRecommendations({ message, platforms, region, conv
 }
 
 // Original TMDB-based recommendation flow
-async function tmdbFallbackPath({ message, selectedPlatforms, platformProviderIds, region, conversationHistory, excludeTitles = [] }) {
+async function tmdbFallbackPath({ message, selectedPlatforms, platformProviderIds, region, conversationHistory, excludeTitles = [], languageCodes }) {
   let availableCatalog = '';
   try {
-    availableCatalog = await buildAvailableCatalog(platformProviderIds, region);
+    availableCatalog = await buildAvailableCatalog(platformProviderIds, region, languageCodes);
   } catch (err) {
     console.error('[Recommend] Failed to fetch catalog, proceeding without:', err.message);
   }

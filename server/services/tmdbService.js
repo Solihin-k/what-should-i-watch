@@ -192,9 +192,10 @@ async function lookupTitle({ title, year, type, region }) {
 
 // discoverDiverseCatalog — fetches 3 diverse pages of content per media type and deduplicates
 // Page 1: most popular; Page 2: top-rated (vote_count >= 50); Page 3: random deeper page (2-6) of popular
-async function discoverDiverseCatalog(providerIds, region, mediaType) {
+async function discoverDiverseCatalog(providerIds, region, mediaType, languageCodes) {
   const sortedIds = [...providerIds].sort((a, b) => a - b);
-  const cacheKey = `diverse_${sortedIds.join(',')}_${region}_${mediaType}`;
+  const langSuffix = languageCodes?.length ? `_lang${languageCodes.sort().join(',')}` : '';
+  const cacheKey = `diverse_${sortedIds.join(',')}_${region}_${mediaType}${langSuffix}`;
   const cached = discoverCache.get(cacheKey);
   if (cached) return cached;
 
@@ -202,6 +203,7 @@ async function discoverDiverseCatalog(providerIds, region, mediaType) {
     watch_region: region,
     with_watch_providers: providerIds.join('|'),
     with_watch_monetization_types: 'flatrate',
+    ...(languageCodes?.length && { with_original_language: languageCodes.join('|') }),
   };
 
   const randomPage = Math.floor(Math.random() * 5) + 2; // 2-6
