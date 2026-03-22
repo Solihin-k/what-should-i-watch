@@ -48,7 +48,7 @@ async function buildAvailableCatalog(platformProviderIds, region) {
 }
 
 // Build a validated recommendation object from TMDB data
-function buildRecommendation({ validated, selectedPlatforms, reasoning, source, unverified = false }) {
+function buildRecommendation({ validated, selectedPlatforms, reasoning, source, unverified = false, topComments }) {
   const releaseDate = validated.release_date || '';
   const year = releaseDate ? new Date(releaseDate).getFullYear() : null;
 
@@ -75,11 +75,12 @@ function buildRecommendation({ validated, selectedPlatforms, reasoning, source, 
     overview: validated.overview || '',
     source,
     ...(unverified && { unverified: true }),
+    ...(topComments && topComments.length > 0 && { topComments }),
   };
 }
 
 // Validate picks against TMDB, returning validated recommendations
-async function validatePicks({ picks, region, platformProviderIds, selectedPlatforms, source }) {
+async function validatePicks({ picks, region, platformProviderIds, selectedPlatforms, source, candidates = [] }) {
   const recommendations = [];
   const unavailableTitles = [];
 
@@ -95,11 +96,13 @@ async function validatePicks({ picks, region, platformProviderIds, selectedPlatf
       });
 
       if (result) {
+        const matchedCandidate = candidates.find((c) => c.title.toLowerCase() === pick.title.toLowerCase());
         recommendations.push(buildRecommendation({
           validated: result,
           selectedPlatforms,
           reasoning: pick.reasoning,
           source,
+          topComments: matchedCandidate?.topComments,
         }));
       } else {
         unavailableTitles.push(pick);
@@ -230,6 +233,7 @@ export async function generateGuidedRecommendations({ tags, platforms, region })
         platformProviderIds,
         selectedPlatforms,
         source: 'community',
+        candidates: boostedCandidates || candidates,
       });
 
       const recoveredRecs = await recoverUnverified({
@@ -326,6 +330,7 @@ export async function generateRecommendations({ message, platforms, region, conv
         platformProviderIds,
         selectedPlatforms,
         source: 'community',
+        candidates,
       });
 
       // Recover unavailable via unverified platforms

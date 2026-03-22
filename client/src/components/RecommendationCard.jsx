@@ -27,6 +27,7 @@ export default function RecommendationCard({
   whyItMatches,
   unverified,
   source,
+  topComments = [],
 }) {
   const posterUrl = posterPath ? `${TMDB_IMAGE_BASE}${posterPath}` : null;
   const [feedback, setFeedback] = useState(null);
@@ -127,6 +128,23 @@ export default function RecommendationCard({
           <p className="text-sm text-gray-600 italic border-l-2 border-indigo-300 pl-3 mt-1">
             {whyItMatches}
           </p>
+        )}
+
+        {/* Social proof — Reddit comments */}
+        {topComments.length > 0 && (
+          <div className="flex flex-col gap-1.5 mt-1">
+            {topComments.slice(0, 2).map((comment, i) => (
+              <p
+                key={i}
+                className={[
+                  'text-xs text-gray-400 italic',
+                  i === 1 ? 'hidden sm:block' : '',
+                ].join(' ')}
+              >
+                <span className="not-italic">💬</span> &ldquo;{comment.text}&rdquo; — <span className="text-gray-500">{comment.subreddit}</span>
+              </p>
+            ))}
+          </div>
         )}
 
         {/* Feedback */}
